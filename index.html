@@ -9,397 +9,180 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#000d22;
-  --blue:#00aaff;
-  --blue2:#33ccff;
-  --glow:rgba(0,170,255,0.3);
-  --border:rgba(0,170,255,0.15);
-  --text:#c8e8ff;
-  --muted:rgba(0,170,255,0.4);
-  --mono:'Courier New',monospace;
-  --sans:'Inter',system-ui,sans-serif;
-  --danger:#ff4444;
-  --success:#00ff88;
+  --bg:#000d22;--blue:#00aaff;--blue2:#33ccff;
+  --border:rgba(0,170,255,0.15);--text:#c8e8ff;--muted:rgba(0,170,255,0.4);
+  --mono:'Courier New',monospace;--sans:'Inter',system-ui,sans-serif;
+  --danger:#ff4444;--success:#00ff88;
 }
-html,body{
-  height:100%;width:100%;overflow:hidden;
-  background:var(--bg);color:var(--text);
-  font-family:var(--sans);font-size:14px;
-  -webkit-font-smoothing:antialiased;
-}
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:
-    linear-gradient(rgba(0,140,255,.05) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,140,255,.05) 1px,transparent 1px);
-  background-size:48px 48px;
-}
-
-/* ── TOPBAR ── */
-#topbar{
-  position:fixed;top:0;left:0;right:0;height:48px;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;
-  background:rgba(0,10,28,.9);
-  border-bottom:1px solid var(--border);
-  backdrop-filter:blur(10px);z-index:100;
-}
-.tb-logo{
-  display:flex;align-items:center;gap:10px;
-  font-family:var(--mono);font-size:13px;font-weight:700;
-  color:var(--blue2);letter-spacing:3px;
-}
-.tb-status{
-  display:flex;align-items:center;gap:7px;
-  font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1.5px;
-}
-.sdot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 7px var(--blue);animation:blink 2.5s ease-in-out infinite}
+html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(0,140,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,140,255,.05) 1px,transparent 1px);background-size:48px 48px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── TOPBAR DROITE : user menu ── */
+/* TOPBAR */
+#topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(0,10,28,.9);border-bottom:1px solid var(--border);backdrop-filter:blur(10px);z-index:100}
+.tb-logo{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--blue2);letter-spacing:3px}
 #tb-right{display:flex;align-items:center;gap:14px}
-#user-btn{
-  display:flex;align-items:center;gap:7px;cursor:pointer;
-  padding:5px 10px;border-radius:20px;
-  border:1px solid var(--border);
-  background:transparent;color:var(--text);
-  font-size:11px;font-family:var(--mono);letter-spacing:1px;
-  transition:all .2s;
-}
+#sync-indicator{font-size:9px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);display:flex;align-items:center;gap:5px}
+#sync-dot{width:5px;height:5px;border-radius:50%;background:#ff6600;box-shadow:0 0 5px #ff6600;flex-shrink:0}
+#user-btn{display:flex;align-items:center;gap:7px;cursor:pointer;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:var(--mono);letter-spacing:1px;transition:all .2s}
 #user-btn:hover{border-color:var(--blue);color:var(--blue2);background:rgba(0,170,255,.07)}
-.user-avatar{
-  width:22px;height:22px;border-radius:50%;
-  background:linear-gradient(135deg,var(--blue),#0055aa);
-  display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:700;color:#fff;flex-shrink:0;
-}
-#sync-indicator{
-  font-size:9px;font-family:var(--mono);letter-spacing:1px;
-  color:var(--muted);display:flex;align-items:center;gap:5px;
-}
-.sync-dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 5px var(--success)}
-.sync-dot.syncing{animation:blink .8s infinite}
-.sync-dot.offline{background:#ff6600;box-shadow:0 0 5px #ff6600}
-.sync-dot.error{background:var(--danger);box-shadow:0 0 5px var(--danger)}
+.user-avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--blue),#0055aa);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 
-/* ── USER DROPDOWN ── */
-#user-dropdown{
-  display:none;position:fixed;top:52px;right:16px;
-  background:rgba(0,12,36,.97);border:1px solid var(--border);
-  border-radius:10px;min-width:200px;z-index:300;
-  box-shadow:0 8px 30px rgba(0,0,0,.7);overflow:hidden;
-}
+/* DROPDOWN */
+#user-dropdown{display:none;position:fixed;top:52px;right:16px;background:rgba(0,12,36,.97);border:1px solid var(--border);border-radius:10px;min-width:210px;z-index:300;box-shadow:0 8px 30px rgba(0,0,0,.7);overflow:hidden;animation:fadeIn .15s ease}
 #user-dropdown.open{display:block}
-.ud-header{
-  padding:14px 16px;border-bottom:1px solid var(--border);
-}
+.ud-header{padding:14px 16px;border-bottom:1px solid var(--border)}
 .ud-name{font-size:12px;font-weight:600;color:var(--blue2)}
 .ud-email{font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
-.ud-item{
-  padding:10px 16px;font-size:11px;color:var(--text);
-  cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:8px;
-}
+.ud-item{padding:10px 16px;font-size:11px;color:var(--text);cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:8px}
 .ud-item:hover{background:rgba(0,170,255,.1);color:var(--blue2)}
 .ud-item.danger:hover{background:rgba(255,60,60,.08);color:var(--danger)}
 .ud-sep{height:1px;background:var(--border);margin:4px 0}
 
-/* ── LAYOUT ── */
-#app{
-  position:relative;z-index:1;
-  height:100vh;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:flex-start;
-  padding-top:48px;
-  gap:10px;
-}
-#hud-wrap{
-  flex:1;
-  display:flex;align-items:center;justify-content:center;
-  width:100%;
-  min-height:0;
-  padding:8px 0 0;
-}
-#jarvis-center{
-  position:relative;
-}
+/* LAYOUT */
+#app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:48px;gap:10px}
+#hud-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;min-height:0;padding:8px 0 0}
+#jarvis-center{position:relative}
 #jarvis-center canvas{display:block}
-#state-label{
-  position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
-  font-family:var(--mono);font-size:9px;letter-spacing:2px;
-  color:var(--muted);pointer-events:none;white-space:nowrap;
-}
+#state-label{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);pointer-events:none;white-space:nowrap}
 
-/* ── BOUTONS ÉTAT ── */
-#state-btns{
-  display:flex;gap:7px;flex-wrap:wrap;justify-content:center;
-  flex-shrink:0;padding-bottom:4px;
-}
-.state-btn{
-  padding:4px 13px;border-radius:20px;
-  font-size:10px;font-family:var(--mono);letter-spacing:1px;
-  cursor:pointer;transition:all .2s;
-  background:transparent;border:1px solid rgba(0,170,255,.18);color:var(--muted);
-}
-.state-btn:hover,.state-btn.active{
-  background:rgba(0,170,255,.1);border-color:var(--blue);color:var(--blue2);
-  box-shadow:0 0 8px rgba(0,170,255,.12);
-}
+/* BOUTONS ÉTAT */
+#state-btns{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;flex-shrink:0;padding-bottom:4px}
+.state-btn{padding:4px 13px;border-radius:20px;font-size:10px;font-family:var(--mono);letter-spacing:1px;cursor:pointer;transition:all .2s;background:transparent;border:1px solid rgba(0,170,255,.18);color:var(--muted)}
+.state-btn:hover,.state-btn.active{background:rgba(0,170,255,.1);border-color:var(--blue);color:var(--blue2);box-shadow:0 0 8px rgba(0,170,255,.12)}
 
-/* ── MODULES ── */
-#modules-row{
-  display:flex;gap:12px;align-items:center;
-  flex-wrap:wrap;justify-content:center;
-  flex-shrink:0;padding-bottom:12px;
-}
-.module-slot{
-  width:150px;height:82px;border-radius:14px;
-  border:1px solid var(--border);
-  background:rgba(0,18,48,.5);
-  backdrop-filter:blur(8px);
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  gap:4px;transition:all .22s;
-  position:relative;overflow:visible;
-}
-.module-slot.loaded{cursor:pointer}
-.module-slot.loaded:hover{
-  border-color:rgba(0,170,255,.45);
-  box-shadow:0 0 16px rgba(0,170,255,.1);
-  transform:translateY(-2px);
-}
+/* MODULES */
+#modules-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;flex-shrink:0;padding-bottom:12px}
+.module-slot{width:150px;height:82px;border-radius:14px;border:1px solid var(--border);background:rgba(0,18,48,.5);backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .22s;position:relative;overflow:visible}
+.module-slot.loaded:hover{border-color:rgba(0,170,255,.45);box-shadow:0 0 16px rgba(0,170,255,.1);transform:translateY(-2px);cursor:pointer}
 .module-slot.inactive{opacity:.45}
 .mod-icon{font-size:19px;line-height:1}
 .mod-name{font-size:11px;font-weight:600;color:var(--text);letter-spacing:.3px}
 .mod-sub{font-size:9px;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mod-status-badge{
-  position:absolute;bottom:5px;left:50%;transform:translateX(-50%);
-  font-size:7px;font-family:var(--mono);letter-spacing:1px;
-  padding:1px 6px;border-radius:6px;
-}
+.mod-status-badge{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:7px;font-family:var(--mono);letter-spacing:1px;padding:1px 6px;border-radius:6px}
 .mod-status-badge.active{background:rgba(0,255,136,.08);color:var(--success);border:1px solid rgba(0,255,136,.2)}
 .mod-status-badge.inactive{background:rgba(255,100,0,.08);color:#ff8844;border:1px solid rgba(255,100,0,.2)}
-
-/* ── 3 POINTS MENU ── */
-.mod-menu-btn{
-  position:absolute;top:6px;right:7px;
-  width:20px;height:18px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;
-  cursor:pointer;opacity:.35;transition:opacity .2s;z-index:10;
-}
+.mod-menu-btn{position:absolute;top:6px;right:7px;width:20px;height:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;cursor:pointer;opacity:.35;transition:opacity .2s;z-index:10}
 .mod-menu-btn:hover{opacity:1}
 .mod-menu-btn span{width:3px;height:3px;border-radius:50%;background:var(--blue2);display:block}
-.mod-menu{
-  display:none;position:absolute;top:26px;right:4px;
-  background:rgba(0,15,40,.97);border:1px solid var(--border);
-  border-radius:8px;overflow:hidden;z-index:200;min-width:170px;
-  box-shadow:0 4px 20px rgba(0,0,0,.6);
-}
+.mod-menu{display:none;position:absolute;top:26px;right:4px;background:rgba(0,15,40,.97);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:200;min-width:170px;box-shadow:0 4px 20px rgba(0,0,0,.6)}
 .mod-menu.open{display:block}
-.mod-menu-item{
-  padding:9px 14px;font-size:11px;color:var(--text);
-  cursor:pointer;transition:background .15s;white-space:nowrap;
-  font-family:var(--sans);display:flex;align-items:center;gap:8px;
-}
+.mod-menu-item{padding:9px 14px;font-size:11px;color:var(--text);cursor:pointer;transition:background .15s;white-space:nowrap;display:flex;align-items:center;gap:8px}
 .mod-menu-item:hover{background:rgba(0,170,255,.12);color:var(--blue2)}
 .mod-menu-item.danger:hover{background:rgba(255,60,60,.1);color:#ff7070}
 .mod-menu-sep{height:1px;background:var(--border);margin:4px 0}
-
-/* slot + */
 .module-slot.add-slot{cursor:pointer}
 .module-slot.add-slot:hover{border-color:rgba(0,170,255,.4);box-shadow:0 0 14px rgba(0,170,255,.08)}
-.plus-circle{
-  width:32px;height:32px;border-radius:50%;
-  border:1.5px dashed rgba(0,170,255,.28);
-  display:flex;align-items:center;justify-content:center;
-  font-size:19px;font-weight:300;color:rgba(0,170,255,.3);
-  transition:all .22s;
-}
+.plus-circle{width:32px;height:32px;border-radius:50%;border:1.5px dashed rgba(0,170,255,.28);display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:300;color:rgba(0,170,255,.3);transition:all .22s}
 .module-slot.add-slot:hover .plus-circle{border-color:var(--blue);color:var(--blue);box-shadow:0 0 12px rgba(0,170,255,.18);transform:scale(1.08)}
 .plus-label{font-size:9px;font-family:var(--mono);letter-spacing:1px;color:rgba(0,170,255,.22);transition:color .2s}
 .module-slot.add-slot:hover .plus-label{color:var(--blue)}
 
-/* ── MODULE IFRAME ── */
-#module-frame{
-  display:none;position:fixed;inset:0;z-index:500;
-  background:var(--bg);flex-direction:column;
-}
+/* MODULE IFRAME */
+#module-frame{display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column}
 #module-frame.open{display:flex}
-#mf-bar{
-  height:44px;display:flex;align-items:center;gap:12px;
-  padding:0 18px;background:rgba(0,10,26,.95);
-  border-bottom:1px solid var(--border);flex-shrink:0;
-}
-#mf-close{
-  padding:4px 11px;border-radius:6px;font-size:10px;font-family:var(--mono);
-  letter-spacing:1px;background:rgba(0,170,255,.07);
-  border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s;
-}
+#mf-bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(0,10,26,.95);border-bottom:1px solid var(--border);flex-shrink:0}
+#mf-close{padding:4px 11px;border-radius:6px;font-size:10px;font-family:var(--mono);letter-spacing:1px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s}
 #mf-close:hover{background:rgba(255,50,50,.1);border-color:rgba(255,60,60,.4);color:#ff7070}
 #mf-title{font-family:var(--mono);font-size:11px;color:var(--blue2);letter-spacing:2px}
 #module-iframe{flex:1;border:none;width:100%;background:#000}
 #file-input{display:none}
 
-/* ── OVERLAY AUTH ── */
-#auth-overlay{
-  display:none;position:fixed;inset:0;z-index:1000;
-  background:rgba(0,5,18,.96);backdrop-filter:blur(12px);
-  align-items:center;justify-content:center;
+/* AUTH OVERLAY */
+#auth-overlay{display:flex;position:fixed;inset:0;z-index:1000;background:rgba(0,5,18,.97);backdrop-filter:blur(16px);align-items:center;justify-content:center}
+#auth-overlay.hidden{display:none}
+.auth-box{width:100%;max-width:360px;padding:40px 32px;background:rgba(0,10,30,.98);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.9),0 0 60px rgba(0,80,255,.05);margin:16px;animation:fadeIn .3s ease}
+.auth-logo{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--blue2);letter-spacing:5px;text-align:center;margin-bottom:4px}
+.auth-tagline{font-size:10px;color:var(--muted);text-align:center;font-family:var(--mono);letter-spacing:2px;margin-bottom:32px}
+.auth-divider{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-divider span{font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;white-space:nowrap}
+
+/* Bouton Google */
+.google-btn{
+  width:100%;padding:13px 16px;border-radius:10px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  color:#e8eaed;font-size:13px;font-family:var(--sans);
+  font-weight:500;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  letter-spacing:.3px;
 }
-#auth-overlay.visible{display:flex}
-.auth-box{
-  width:100%;max-width:380px;
-  padding:36px 32px;
-  background:rgba(0,12,36,.98);
-  border:1px solid var(--border);
-  border-radius:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.8), 0 0 40px rgba(0,100,255,.06);
-  margin:16px;
-}
-.auth-logo{
-  font-family:var(--mono);font-size:22px;font-weight:700;
-  color:var(--blue2);letter-spacing:4px;text-align:center;
-  margin-bottom:6px;
-}
-.auth-tagline{
-  font-size:10px;color:var(--muted);text-align:center;
-  font-family:var(--mono);letter-spacing:2px;margin-bottom:28px;
-}
-.auth-tabs{
-  display:flex;border-bottom:1px solid var(--border);margin-bottom:24px;
-}
-.auth-tab{
-  flex:1;padding:8px;text-align:center;font-size:11px;
-  font-family:var(--mono);letter-spacing:1px;cursor:pointer;
-  color:var(--muted);transition:all .2s;border-bottom:2px solid transparent;
-  margin-bottom:-1px;
-}
-.auth-tab.active{color:var(--blue2);border-bottom-color:var(--blue)}
-.auth-field{margin-bottom:14px}
-.auth-field label{
-  display:block;font-size:10px;font-family:var(--mono);
-  letter-spacing:1px;color:var(--muted);margin-bottom:6px;
-}
-.auth-field input{
-  width:100%;padding:10px 14px;
-  background:rgba(0,20,60,.6);
-  border:1px solid var(--border);border-radius:8px;
-  color:var(--text);font-size:13px;font-family:var(--sans);
-  outline:none;transition:border-color .2s;
-}
+.google-btn:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.22);box-shadow:0 4px 20px rgba(0,0,0,.4);transform:translateY(-1px)}
+.google-btn:active{transform:translateY(0)}
+.google-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.google-icon{width:18px;height:18px;flex-shrink:0}
+
+/* Séparateur + email optionnel */
+.auth-or{text-align:center;font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;margin:20px 0 16px}
+.auth-field{margin-bottom:12px}
+.auth-field label{display:block;font-size:10px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);margin-bottom:5px}
+.auth-field input{width:100%;padding:10px 14px;background:rgba(0,20,60,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;transition:border-color .2s}
 .auth-field input:focus{border-color:var(--blue)}
-.auth-btn{
-  width:100%;padding:11px;border-radius:8px;
-  background:linear-gradient(135deg,rgba(0,100,220,.7),rgba(0,60,160,.7));
-  border:1px solid rgba(0,170,255,.3);
-  color:var(--blue2);font-size:12px;font-family:var(--mono);
-  letter-spacing:2px;cursor:pointer;transition:all .2s;margin-top:4px;
-}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}
+.auth-tab{flex:1;padding:7px;text-align:center;font-size:10px;font-family:var(--mono);letter-spacing:1px;cursor:pointer;color:var(--muted);transition:all .2s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.auth-tab.active{color:var(--blue2);border-bottom-color:var(--blue)}
+.auth-btn{width:100%;padding:11px;border-radius:8px;background:linear-gradient(135deg,rgba(0,100,220,.7),rgba(0,60,160,.7));border:1px solid rgba(0,170,255,.3);color:var(--blue2);font-size:12px;font-family:var(--mono);letter-spacing:2px;cursor:pointer;transition:all .2s;margin-top:4px}
 .auth-btn:hover{background:linear-gradient(135deg,rgba(0,130,255,.8),rgba(0,80,200,.8));box-shadow:0 0 20px rgba(0,150,255,.2)}
 .auth-btn:disabled{opacity:.5;cursor:not-allowed}
-.auth-error{
-  font-size:11px;color:var(--danger);font-family:var(--mono);
-  text-align:center;margin-bottom:12px;min-height:16px;
-  padding:8px;background:rgba(255,0,0,.05);border-radius:6px;
-  border:1px solid rgba(255,0,0,.15);display:none;
-}
-.auth-error.visible{display:block}
-.auth-link{
-  text-align:center;margin-top:14px;font-size:10px;
-  color:var(--muted);cursor:pointer;
-}
+.auth-msg{font-size:11px;font-family:var(--mono);text-align:center;padding:9px 12px;border-radius:7px;margin-bottom:14px;display:none;line-height:1.5}
+.auth-msg.error{color:var(--danger);background:rgba(255,0,0,.06);border:1px solid rgba(255,0,0,.15);display:block}
+.auth-msg.success{color:var(--success);background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.15);display:block}
+.auth-msg.info{color:var(--blue2);background:rgba(0,150,255,.06);border:1px solid rgba(0,150,255,.15);display:block}
+.auth-link{text-align:center;margin-top:12px;font-size:10px;color:var(--muted);cursor:pointer}
 .auth-link span{color:var(--blue);text-decoration:underline}
+.auth-loading-spinner{width:20px;height:20px;border:2px solid rgba(0,170,255,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 8px}
 
-/* ── MODALE CONFIRMATION ── */
-#confirm-modal{
-  display:none;position:fixed;inset:0;z-index:600;
-  background:rgba(0,5,18,.85);backdrop-filter:blur(8px);
-  align-items:center;justify-content:center;
-}
-#confirm-modal.visible{display:flex}
-.confirm-box{
-  background:rgba(0,12,36,.98);border:1px solid var(--border);
-  border-radius:12px;padding:24px 28px;max-width:340px;width:90%;
-  box-shadow:0 10px 40px rgba(0,0,0,.7);
-}
-.confirm-title{font-size:13px;font-weight:600;color:var(--blue2);margin-bottom:10px;font-family:var(--mono)}
-.confirm-msg{font-size:12px;color:var(--text);margin-bottom:20px;line-height:1.6}
-.confirm-btns{display:flex;gap:10px;justify-content:flex-end}
-.confirm-cancel{
-  padding:7px 16px;border-radius:6px;font-size:11px;font-family:var(--mono);
-  background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-}
-.confirm-ok{
-  padding:7px 16px;border-radius:6px;font-size:11px;font-family:var(--mono);
-  background:rgba(255,40,40,.15);border:1px solid rgba(255,60,60,.3);color:#ff7070;cursor:pointer;
-}
-
-/* ── TOAST ── */
-#toast{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
-  background:rgba(0,15,40,.97);border:1px solid var(--border);
-  border-radius:8px;padding:10px 20px;font-size:11px;font-family:var(--mono);
-  color:var(--text);z-index:800;transition:transform .3s ease;white-space:nowrap;
-  box-shadow:0 4px 20px rgba(0,0,0,.6);
-}
-#toast.show{transform:translateX(-50%) translateY(0)}
-#toast.success{border-color:rgba(0,255,136,.3);color:var(--success)}
-#toast.error{border-color:rgba(255,60,60,.3);color:var(--danger)}
-
-/* ── PANEL PARAMÈTRES ── */
-#settings-panel{
-  display:none;position:fixed;inset:0;z-index:600;
-  background:rgba(0,5,18,.95);backdrop-filter:blur(12px);
-  flex-direction:column;
-}
+/* PARAMÈTRES */
+#settings-panel{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,5,18,.95);backdrop-filter:blur(12px);flex-direction:column}
 #settings-panel.open{display:flex}
-#sp-bar{
-  height:44px;display:flex;align-items:center;gap:12px;
-  padding:0 18px;background:rgba(0,10,26,.95);
-  border-bottom:1px solid var(--border);flex-shrink:0;
-}
-#sp-close{
-  padding:4px 11px;border-radius:6px;font-size:10px;font-family:var(--mono);
-  letter-spacing:1px;background:rgba(0,170,255,.07);
-  border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s;
-}
+#sp-bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(0,10,26,.95);border-bottom:1px solid var(--border);flex-shrink:0}
+#sp-close{padding:4px 11px;border-radius:6px;font-size:10px;font-family:var(--mono);letter-spacing:1px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s}
 #sp-close:hover{background:rgba(255,50,50,.1);border-color:rgba(255,60,60,.4);color:#ff7070}
 #sp-title{font-family:var(--mono);font-size:11px;color:var(--blue2);letter-spacing:2px}
 #sp-content{flex:1;overflow-y:auto;padding:24px;max-width:600px;margin:0 auto;width:100%}
 .sp-section{margin-bottom:28px}
-.sp-section-title{
-  font-family:var(--mono);font-size:10px;letter-spacing:2px;
-  color:var(--muted);border-bottom:1px solid var(--border);
-  padding-bottom:8px;margin-bottom:14px;
-}
+.sp-section-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:14px}
 .sp-field{margin-bottom:12px}
 .sp-field label{display:block;font-size:11px;color:var(--text);margin-bottom:5px}
-.sp-field input{
-  width:100%;padding:9px 12px;
-  background:rgba(0,20,60,.6);border:1px solid var(--border);
-  border-radius:7px;color:var(--text);font-size:12px;outline:none;
-}
+.sp-field input{width:100%;padding:9px 12px;background:rgba(0,20,60,.6);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;outline:none}
 .sp-field input:focus{border-color:var(--blue)}
-.sp-save-btn{
-  padding:9px 20px;border-radius:7px;font-size:11px;font-family:var(--mono);
-  background:rgba(0,100,220,.3);border:1px solid rgba(0,170,255,.3);
-  color:var(--blue2);cursor:pointer;letter-spacing:1px;transition:all .2s;
-}
+.sp-field input:disabled{opacity:.5}
+.sp-save-btn{padding:9px 20px;border-radius:7px;font-size:11px;font-family:var(--mono);background:rgba(0,100,220,.3);border:1px solid rgba(0,170,255,.3);color:var(--blue2);cursor:pointer;letter-spacing:1px;transition:all .2s}
 .sp-save-btn:hover{background:rgba(0,130,255,.4)}
 
-@media(max-width:600px){
-  .module-slot{width:130px;height:74px}
-  .auth-box{padding:24px 18px}
-}
+/* CONFIRM */
+#confirm-modal{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,5,18,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center}
+#confirm-modal.visible{display:flex}
+.confirm-box{background:rgba(0,12,36,.98);border:1px solid var(--border);border-radius:12px;padding:24px 28px;max-width:340px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.7)}
+.confirm-title{font-size:13px;font-weight:600;color:var(--blue2);margin-bottom:10px;font-family:var(--mono)}
+.confirm-msg{font-size:12px;color:var(--text);margin-bottom:20px;line-height:1.6}
+.confirm-btns{display:flex;gap:10px;justify-content:flex-end}
+.confirm-cancel{padding:7px 16px;border-radius:6px;font-size:11px;font-family:var(--mono);background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.confirm-ok{padding:7px 16px;border-radius:6px;font-size:11px;font-family:var(--mono);background:rgba(255,40,40,.15);border:1px solid rgba(255,60,60,.3);color:#ff7070;cursor:pointer}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(0,15,40,.97);border:1px solid var(--border);border-radius:8px;padding:10px 20px;font-size:11px;font-family:var(--mono);color:var(--text);z-index:800;transition:transform .3s ease;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:rgba(0,255,136,.3);color:var(--success)}
+#toast.error{border-color:rgba(255,60,60,.3);color:var(--danger)}
+
+@media(max-width:600px){.module-slot{width:130px;height:74px}.auth-box{padding:28px 18px}}
 </style>
 </head>
 <body>
 
-<!-- ══ TOPBAR ══════════════════════════════════════ -->
+<!-- TOPBAR -->
 <div id="topbar">
-  <div class="tb-logo">JARVIS OS</div>
+  <div class="tb-logo">
+    <img src="icon-192.png" alt="Jarvis OS" style="height:32px;width:32px;border-radius:7px;object-fit:cover;display:block"/>
+  </div>
   <div id="tb-right">
     <div id="sync-indicator">
-      <div class="sync-dot" id="sync-dot"></div>
+      <div id="sync-dot"></div>
       <span id="sync-text">HORS LIGNE</span>
     </div>
     <div id="user-btn" onclick="toggleUserDropdown()">
@@ -409,19 +192,19 @@ body::before{
   </div>
 </div>
 
-<!-- ══ USER DROPDOWN ═══════════════════════════════ -->
+<!-- DROPDOWN -->
 <div id="user-dropdown">
   <div class="ud-header">
     <div class="ud-name" id="dd-name">—</div>
     <div class="ud-email" id="dd-email">—</div>
   </div>
   <div class="ud-item" onclick="openSettings();closeDropdown()">⚙ Paramètres</div>
-  <div class="ud-item" onclick="forcSync()">↺ Synchroniser</div>
+  <div class="ud-item" onclick="forceSync();closeDropdown()">↺ Synchroniser</div>
   <div class="ud-sep"></div>
   <div class="ud-item danger" onclick="doSignOut()">⏻ Déconnexion</div>
 </div>
 
-<!-- ══ APP PRINCIPALE ══════════════════════════════ -->
+<!-- APP -->
 <div id="app">
   <div id="hud-wrap">
     <div id="jarvis-center">
@@ -429,21 +212,18 @@ body::before{
       <div id="state-label">EN LIGNE</div>
     </div>
   </div>
-
   <div id="state-btns">
     <button class="state-btn active" onclick="setState('online')">EN LIGNE</button>
     <button class="state-btn" onclick="setState('listening')">ÉCOUTE</button>
     <button class="state-btn" onclick="setState('working')">TRAVAILLE</button>
     <button class="state-btn" onclick="setState('speaking')">PARLE</button>
   </div>
-
   <div id="modules-row"></div>
 </div>
 
-<!-- ══ FILE INPUT (invisible) ═══════════════════════ -->
 <input type="file" id="file-input" accept=".html" onchange="loadModule(event)"/>
 
-<!-- ══ MODULE IFRAME ════════════════════════════════ -->
+<!-- MODULE IFRAME -->
 <div id="module-frame">
   <div id="mf-bar">
     <button id="mf-close" onclick="closeModule()">← RETOUR</button>
@@ -452,7 +232,7 @@ body::before{
   <iframe id="module-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
 </div>
 
-<!-- ══ PANNEAU PARAMÈTRES ═══════════════════════════ -->
+<!-- PARAMÈTRES -->
 <div id="settings-panel">
   <div id="sp-bar">
     <button id="sp-close" onclick="closeSettings()">← RETOUR</button>
@@ -461,81 +241,72 @@ body::before{
   <div id="sp-content">
     <div class="sp-section">
       <div class="sp-section-title">PROFIL</div>
-      <div class="sp-field">
-        <label>Nom d'affichage</label>
-        <input type="text" id="sp-display-name" placeholder="Ton nom"/>
-      </div>
-      <button class="sp-save-btn" onclick="saveProfile()">Enregistrer le profil</button>
+      <div class="sp-field"><label>Nom d'affichage</label><input type="text" id="sp-display-name" placeholder="Ton nom"/></div>
+      <button class="sp-save-btn" onclick="saveProfile()">Enregistrer</button>
     </div>
     <div class="sp-section">
       <div class="sp-section-title">COMPTE</div>
-      <div class="sp-field">
-        <label>Email</label>
-        <input type="text" id="sp-email" disabled/>
-      </div>
+      <div class="sp-field"><label>Email</label><input type="text" id="sp-email" disabled/></div>
+      <div class="sp-field"><label>Fournisseur</label><input type="text" id="sp-provider" disabled/></div>
     </div>
     <div class="sp-section">
       <div class="sp-section-title">DONNÉES</div>
-      <button class="sp-save-btn" onclick="exportModules()" style="margin-right:8px">⬇ Exporter les modules</button>
+      <button class="sp-save-btn" onclick="exportModules()" style="margin-right:8px">⬇ Exporter</button>
       <button class="sp-save-btn" onclick="document.getElementById('import-input').click()">⬆ Importer</button>
       <input type="file" id="import-input" accept=".json" style="display:none" onchange="importModules(event)"/>
     </div>
   </div>
 </div>
 
-<!-- ══ OVERLAY AUTH ══════════════════════════════════ -->
+<!-- AUTH OVERLAY — visible par défaut -->
 <div id="auth-overlay">
   <div class="auth-box">
     <div class="auth-logo">JARVIS OS</div>
     <div class="auth-tagline">PLATEFORME MODULAIRE</div>
 
+    <div id="auth-msg" class="auth-msg"></div>
+
+    <!-- Bouton Google -->
+    <button class="google-btn" id="google-btn" onclick="doGoogleLogin()">
+      <!-- Icône Google SVG officielle -->
+      <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continuer avec Google
+    </button>
+
+    <div class="auth-or">— OU —</div>
+
+    <!-- Email / mot de passe -->
     <div class="auth-tabs">
-      <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">CONNEXION</div>
-      <div class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">INSCRIPTION</div>
+      <div class="auth-tab active" id="tab-login" onclick="switchTab('login')">CONNEXION</div>
+      <div class="auth-tab" id="tab-signup" onclick="switchTab('signup')">INSCRIPTION</div>
     </div>
 
-    <div id="auth-error" class="auth-error"></div>
-
-    <!-- Connexion -->
     <div id="form-login">
-      <div class="auth-field">
-        <label>EMAIL</label>
-        <input type="email" id="login-email" placeholder="email@exemple.com" autocomplete="email"/>
-      </div>
-      <div class="auth-field">
-        <label>MOT DE PASSE</label>
-        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
-               onkeydown="if(event.key==='Enter')doLogin()"/>
-      </div>
+      <div class="auth-field"><label>EMAIL</label><input type="email" id="login-email" placeholder="email@exemple.com" autocomplete="email"/></div>
+      <div class="auth-field"><label>MOT DE PASSE</label><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
       <button class="auth-btn" id="login-btn" onclick="doLogin()">CONNEXION</button>
-      <div class="auth-link" onclick="showResetPassword()">Mot de passe oublié ? <span>Réinitialiser</span></div>
+      <div class="auth-link" onclick="doReset()">Mot de passe oublié ? <span>Réinitialiser</span></div>
     </div>
 
-    <!-- Inscription -->
     <div id="form-signup" style="display:none">
-      <div class="auth-field">
-        <label>NOM D'AFFICHAGE</label>
-        <input type="text" id="signup-name" placeholder="Ton prénom"/>
-      </div>
-      <div class="auth-field">
-        <label>EMAIL</label>
-        <input type="email" id="signup-email" placeholder="email@exemple.com" autocomplete="email"/>
-      </div>
-      <div class="auth-field">
-        <label>MOT DE PASSE</label>
-        <input type="password" id="signup-password" placeholder="Minimum 6 caractères" autocomplete="new-password"
-               onkeydown="if(event.key==='Enter')doSignUp()"/>
-      </div>
+      <div class="auth-field"><label>NOM D'AFFICHAGE</label><input type="text" id="signup-name" placeholder="Ton prénom"/></div>
+      <div class="auth-field"><label>EMAIL</label><input type="email" id="signup-email" placeholder="email@exemple.com" autocomplete="email"/></div>
+      <div class="auth-field"><label>MOT DE PASSE</label><input type="password" id="signup-password" placeholder="Minimum 6 caractères" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignUp()"/></div>
       <button class="auth-btn" id="signup-btn" onclick="doSignUp()">CRÉER MON COMPTE</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODALE CONFIRM ════════════════════════════════ -->
+<!-- CONFIRM -->
 <div id="confirm-modal">
   <div class="confirm-box">
     <div class="confirm-title" id="confirm-title">Confirmer</div>
-    <div class="confirm-msg" id="confirm-msg">Es-tu sûr ?</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
     <div class="confirm-btns">
       <button class="confirm-cancel" onclick="resolveConfirm(false)">Annuler</button>
       <button class="confirm-ok" id="confirm-ok-btn" onclick="resolveConfirm(true)">Confirmer</button>
@@ -543,654 +314,464 @@ body::before{
   </div>
 </div>
 
-<!-- ══ TOAST ═════════════════════════════════════════ -->
 <div id="toast"></div>
 
-<!-- ══════════════════════════════════════════════════
-     SCRIPTS
-══════════════════════════════════════════════════════ -->
-<script type="module">
-// ════════════════════════════════════════════════════
-// IMPORTS SUPABASE
-// ════════════════════════════════════════════════════
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+<script>
+// ══════════════════════════════════════════════
+// HUD CANVAS — démarre immédiatement
+// ══════════════════════════════════════════════
+const canvas=document.getElementById('hud'),ctx=canvas.getContext('2d')
+let W=0,H=0,cx=0,cy=0,t=0,jarvisState='online'
+const NPART=200
+let particles=[]
+window.JARVIS={audioAmplitude:0}
 
-// ⚠️ REMPLACE PAR TES VALEURS SUPABASE
-const SUPABASE_URL     = 'https://XXXXXXXXXXXX.supabase.co'
-const SUPABASE_ANON_KEY= 'eyJXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+function resizeHUD(){
+  const wrap=document.getElementById('hud-wrap')
+  const S=Math.max(180,Math.min(wrap.offsetHeight-24,wrap.offsetWidth-24))
+  const el=document.getElementById('jarvis-center')
+  el.style.width=S+'px';el.style.height=S+'px'
+  canvas.width=S;canvas.height=S;W=S;H=S;cx=S/2;cy=S/2
+  buildParticles()
+}
+function buildParticles(){
+  const R=W*.30;particles=[]
+  for(let i=0;i<NPART;i++){
+    const ang=Math.random()*Math.PI*2,u=(i+Math.random())/NPART,dist=R*Math.sqrt(u)*.92
+    const listenAng=(i/NPART)*Math.PI*2+(Math.random()-.5)*(Math.PI*2/NPART)*1.5
+    const rnd=Math.random()
+    const listenR=rnd<.82?R*(.76+Math.random()*.22):rnd<.94?R*(.64+Math.random()*.12):rnd<.98?R*(.52+Math.random()*.12):R*(.40+Math.random()*.12)
+    particles.push({ang,dist,listenR,listenAng,x:cx+Math.cos(ang)*dist,y:cy+Math.sin(ang)*dist,sz:.9,ph:Math.random()*Math.PI*2,al:Math.random()*.5+.4})
+  }
+}
+function drawHUD(){
+  t+=0.016;ctx.clearRect(0,0,W,H)
+  const spd={online:.18,listening:.9,working:1.5,speaking:.65}[jarvisState]||.18
+  const rot=t*spd*.35,breathOn=Math.sin(t*(Math.PI*2/4)),breathWrk=Math.sin(t*(Math.PI*2/2.4))
+  const bgG=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.5)
+  bgG.addColorStop(0,'rgba(0,45,110,.45)');bgG.addColorStop(.65,'rgba(0,12,45,.2)');bgG.addColorStop(1,'rgba(0,4,16,0)')
+  ctx.beginPath();ctx.arc(cx,cy,W*.5,0,Math.PI*2);ctx.fillStyle=bgG;ctx.fill()
+  const GAP=W*.038,R4=W*.310,R3=R4+GAP,R2=R3+GAP*.5,R1=R2+GAP*1.2
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);ctx.globalAlpha=.45;ctx.strokeStyle='#44ccff';ctx.lineWidth=1
+  ctx.setLineDash([3,4]);ctx.beginPath();ctx.arc(0,0,R1,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])
+  for(let i=0;i<24;i++){
+    const a=(i/24)*Math.PI*2,maj=i%6===0,mid=i%2===0,len=maj?11:mid?7:4
+    ctx.globalAlpha=maj?.85:mid?.5:.28;ctx.strokeStyle='#44ccff';ctx.lineWidth=maj?1.8:mid?1.2:.8
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*R1,Math.sin(a)*R1);ctx.lineTo(Math.cos(a)*(R1+len),Math.sin(a)*(R1+len));ctx.stroke()
+  }
+  ctx.restore()
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(-rot*.5);ctx.globalAlpha=.22;ctx.strokeStyle='#2299dd';ctx.lineWidth=.7
+  ctx.setLineDash([2,7]);ctx.beginPath();ctx.arc(0,0,R2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore()
+  const arcSpan=Math.PI*(110/180)
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot*1.1);ctx.strokeStyle='#44bbee';ctx.lineWidth=1.4;ctx.globalAlpha=.58
+  for(let i=0;i<3;i++){const c=(i/3)*Math.PI*2;ctx.beginPath();ctx.arc(0,0,R3,c-arcSpan/2,c+arcSpan/2);ctx.stroke()}
+  ctx.restore()
+  ctx.save();ctx.globalAlpha=.28;ctx.strokeStyle='#2299cc';ctx.lineWidth=.8
+  ctx.beginPath();ctx.arc(cx,cy,R4,0,Math.PI*2);ctx.stroke();ctx.restore()
+  particles.forEach(p=>{
+    let tx,ty
+    if(jarvisState==='online'){const e=1+breathOn*.18;tx=cx+Math.cos(p.ang)*p.dist*e;ty=cy+Math.sin(p.ang)*p.dist*e}
+    else if(jarvisState==='listening'){const na=p.listenAng+t*.55;tx=cx+Math.cos(na)*p.listenR;ty=cy+Math.sin(na)*p.listenR}
+    else if(jarvisState==='working'){const sc=1+breathWrk*.16;tx=cx+Math.cos(p.ang)*p.dist*sc;ty=cy+Math.sin(p.ang)*p.dist*sc}
+    else{const amp=window.JARVIS.audioAmplitude||0,wave=Math.sin(t*4+p.ph*3)*(.07+amp*.35);tx=cx+Math.cos(p.ang+t*.12)*p.dist*(1+wave);ty=cy+Math.sin(p.ang+t*.12)*p.dist*(1+wave)}
+    const rdx=tx-cx,rdy=ty-cy,rd=Math.hypot(rdx,rdy)
+    if(rd>R4){tx=cx+rdx*(R4/rd);ty=cy+rdy*(R4/rd)}
+    p.x+=(tx-p.x)*.07;p.y+=(ty-p.y)*.07
+    const d=Math.hypot(p.x-cx,p.y-cy),ctr=Math.max(0,1-d/(R4*.4))
+    const al=p.al*(.85+Math.sin(t*.7+p.ph)*.15)+ctr*.12
+    if(al<.05)return
+    let haloR,haloAl
+    if(jarvisState==='working'){const hS=breathWrk*.5+.5;haloR=p.sz*(2+hS*4.5);haloAl=al*(.2+hS*.6)}
+    else{haloR=p.sz*2;haloAl=al*.22}
+    const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR)
+    gr.addColorStop(0,`rgba(0,160,255,${haloAl})`);gr.addColorStop(1,'rgba(0,100,255,0)')
+    ctx.beginPath();ctx.arc(p.x,p.y,haloR,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill()
+    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fillStyle=`rgba(245,253,255,${Math.min(1,al*3)})`;ctx.fill()
+  })
+  const hg=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025)
+  hg.addColorStop(0,'rgba(60,160,255,.15)');hg.addColorStop(1,'rgba(0,80,180,0)')
+  ctx.beginPath();ctx.arc(cx,cy,W*.025,0,Math.PI*2);ctx.fillStyle=hg;ctx.fill()
+  requestAnimationFrame(drawHUD)
+}
+window.setState=function(s){
+  jarvisState=s
+  const L={online:'EN LIGNE',listening:'ÉCOUTE',working:'TRAVAILLE',speaking:'PARLE'}
+  document.getElementById('state-label').textContent=L[s]||s
+  document.querySelectorAll('.state-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===L[s]))
+}
+window.addEventListener('resize',resizeHUD)
+resizeHUD();drawHUD()
 
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { autoRefreshToken: true, persistSession: true }
-})
-
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // ÉTAT GLOBAL
-// ════════════════════════════════════════════════════
-let currentUser  = null
-let currentProfile = null
-let MODULES      = []         // [{name,icon,sub,content,is_active,permissions,config}]
-let syncTimeout  = null
-let isOnline     = navigator.onLine
-let confirmResolve = null
+// ══════════════════════════════════════════════
+let sb=null,currentUser=null,currentProfile=null
+let MODULES=[],syncTimeout=null,confirmResolve=null
 
-window.JARVIS = { getState:()=>jarvisState, setState, audioAmplitude:0 }
+// ⚠️ REMPLACE CES DEUX VALEURS PAR LES TIENNES
+const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOj'
 
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // UTILITAIRES
-// ════════════════════════════════════════════════════
-function toast(msg, type='info', duration=3000){
+// ══════════════════════════════════════════════
+function toast(msg,type,dur=3000){
   const el=document.getElementById('toast')
-  el.textContent=msg; el.className='show '+(type==='success'?'success':type==='error'?'error':'')
-  clearTimeout(el._t)
-  el._t=setTimeout(()=>el.classList.remove('show'), duration)
+  el.textContent=msg;el.className='show'+(type==='success'?' success':type==='error'?' error':'')
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur)
 }
-
-function showError(msg){
-  const el=document.getElementById('auth-error')
-  el.textContent=msg; el.classList.add('visible')
+function setAuthMsg(msg,type){
+  const el=document.getElementById('auth-msg')
+  el.textContent=msg;el.className='auth-msg '+(type||'error')
 }
-function clearError(){ document.getElementById('auth-error').classList.remove('visible') }
-
-function setSyncStatus(status, label){
-  const dot=document.getElementById('sync-dot')
-  const txt=document.getElementById('sync-text')
-  dot.className='sync-dot '+(status==='ok'?'':'status==='syncing'?'syncing':status==='offline'?'offline':'error')
-  // simplified
-  if(status==='ok'){ dot.style.background='var(--success)';dot.style.boxShadow='0 0 5px var(--success)';dot.style.animation='' }
-  else if(status==='syncing'){ dot.style.background='var(--blue)';dot.style.boxShadow='0 0 5px var(--blue)';dot.style.animation='blink .8s infinite' }
-  else if(status==='offline'){ dot.style.background='#ff6600';dot.style.boxShadow='0 0 5px #ff6600';dot.style.animation='' }
-  else { dot.style.background='var(--danger)';dot.style.boxShadow='0 0 5px var(--danger)';dot.style.animation='' }
+function clearAuthMsg(){document.getElementById('auth-msg').className='auth-msg'}
+function setSyncStatus(status,label){
+  const dot=document.getElementById('sync-dot'),txt=document.getElementById('sync-text')
+  const c={ok:'var(--success)',syncing:'var(--blue)',offline:'#ff6600',error:'var(--danger)'}[status]||'#ff6600'
+  dot.style.cssText=`background:${c};box-shadow:0 0 5px ${c};width:5px;height:5px;border-radius:50%;flex-shrink:0`
+  dot.style.animation=status==='syncing'?'blink .8s infinite':''
   txt.textContent=label
 }
-
-// Modale confirm async
-window.resolveConfirm = function(val){
+window.resolveConfirm=function(v){
   document.getElementById('confirm-modal').classList.remove('visible')
-  if(confirmResolve) confirmResolve(val)
-  confirmResolve=null
+  if(confirmResolve)confirmResolve(v);confirmResolve=null
 }
-function confirm2(title, msg, okLabel='Confirmer'){
-  return new Promise(resolve=>{
-    confirmResolve=resolve
+function confirm2(title,msg,okLabel='Confirmer'){
+  return new Promise(r=>{
+    confirmResolve=r
     document.getElementById('confirm-title').textContent=title
     document.getElementById('confirm-msg').textContent=msg
     document.getElementById('confirm-ok-btn').textContent=okLabel
     document.getElementById('confirm-modal').classList.add('visible')
   })
 }
+function showAuthOverlay(){document.getElementById('auth-overlay').classList.remove('hidden')}
+function hideAuthOverlay(){document.getElementById('auth-overlay').classList.add('hidden')}
 
-// ════════════════════════════════════════════════════
-// AUTH
-// ════════════════════════════════════════════════════
-window.switchAuthTab = function(tab){
+// ══════════════════════════════════════════════
+// AUTH — GOOGLE
+// ══════════════════════════════════════════════
+window.doGoogleLogin=async function(){
+  if(!sb){setAuthMsg('Supabase non configuré. Remplace les clés dans index.html.','error');return}
+  const btn=document.getElementById('google-btn')
+  btn.disabled=true;btn.innerHTML='<div class="auth-loading-spinner"></div>'
+  try{
+    const{error}=await sb.auth.signInWithOAuth({
+      provider:'google',
+      options:{
+        redirectTo: window.location.origin+window.location.pathname,
+        queryParams:{access_type:'offline',prompt:'consent'}
+      }
+    })
+    if(error)throw error
+    // La page va se recharger après redirect Google — pas besoin de gérer ici
+  }catch(e){
+    setAuthMsg(e.message,'error')
+    btn.disabled=false
+    btn.innerHTML=`<svg class="google-icon" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continuer avec Google`
+  }
+}
+
+// ── Auth email/mot de passe (backup) ──
+window.switchTab=function(tab){
   document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'))
   document.getElementById('tab-'+tab).classList.add('active')
-  document.getElementById('form-login').style.display = tab==='login'?'block':'none'
-  document.getElementById('form-signup').style.display= tab==='signup'?'block':'none'
-  clearError()
+  document.getElementById('form-login').style.display=tab==='login'?'block':'none'
+  document.getElementById('form-signup').style.display=tab==='signup'?'block':'none'
+  clearAuthMsg()
 }
-
-window.doLogin = async function(){
-  clearError()
+window.doLogin=async function(){
+  if(!sb){setAuthMsg('Supabase non configuré.','error');return}
+  clearAuthMsg()
   const email=document.getElementById('login-email').value.trim()
-  const pw   =document.getElementById('login-password').value
-  if(!email||!pw){ showError('Email et mot de passe requis.'); return }
-  const btn=document.getElementById('login-btn')
-  btn.disabled=true; btn.textContent='CONNEXION...'
+  const pw=document.getElementById('login-password').value
+  if(!email||!pw){setAuthMsg('Email et mot de passe requis.','error');return}
+  const btn=document.getElementById('login-btn');btn.disabled=true;btn.textContent='CONNEXION...'
   try{
-    const { error } = await sb.auth.signInWithPassword({ email, password:pw })
-    if(error) throw error
-  } catch(e){
-    showError(e.message==='Invalid login credentials'?'Email ou mot de passe incorrect.':e.message)
-    btn.disabled=false; btn.textContent='CONNEXION'
+    const{error}=await sb.auth.signInWithPassword({email,password:pw})
+    if(error)throw error
+  }catch(e){
+    setAuthMsg(e.message==='Invalid login credentials'?'Email ou mot de passe incorrect.':e.message,'error')
+    btn.disabled=false;btn.textContent='CONNEXION'
   }
 }
-
-window.doSignUp = async function(){
-  clearError()
-  const name =document.getElementById('signup-name').value.trim()
+window.doSignUp=async function(){
+  if(!sb){setAuthMsg('Supabase non configuré.','error');return}
+  clearAuthMsg()
+  const name=document.getElementById('signup-name').value.trim()
   const email=document.getElementById('signup-email').value.trim()
-  const pw   =document.getElementById('signup-password').value
-  if(!name||!email||!pw){ showError('Tous les champs sont requis.'); return }
-  if(pw.length<6){ showError('Le mot de passe doit faire au moins 6 caractères.'); return }
-  const btn=document.getElementById('signup-btn')
-  btn.disabled=true; btn.textContent='CRÉATION...'
+  const pw=document.getElementById('signup-password').value
+  if(!name||!email||!pw){setAuthMsg('Tous les champs sont requis.','error');return}
+  if(pw.length<6){setAuthMsg('Mot de passe : minimum 6 caractères.','error');return}
+  const btn=document.getElementById('signup-btn');btn.disabled=true;btn.textContent='CRÉATION...'
   try{
-    const { error } = await sb.auth.signUp({
-      email, password:pw,
-      options:{ data:{ display_name:name } }
+    const{error}=await sb.auth.signUp({email,password:pw,options:{data:{display_name:name}}})
+    if(error)throw error
+    setAuthMsg('✓ Compte créé ! Vérifie ta boite mail pour confirmer.','success')
+    btn.disabled=false;btn.textContent='CRÉER MON COMPTE'
+  }catch(e){setAuthMsg(e.message,'error');btn.disabled=false;btn.textContent='CRÉER MON COMPTE'}
+}
+window.doSignOut=async function(){
+  closeDropdown()
+  if(sb)await sb.auth.signOut()
+  currentUser=null;currentProfile=null;MODULES=[]
+  document.getElementById('user-name').textContent='CONNEXION'
+  document.getElementById('user-avatar').textContent='?'
+  document.getElementById('user-avatar').innerHTML='?'
+  setSyncStatus('offline','HORS LIGNE')
+  renderModules();showAuthOverlay()
+}
+window.doReset=async function(){
+  if(!sb){setAuthMsg('Supabase non configuré.','error');return}
+  const email=document.getElementById('login-email').value.trim()
+  if(!email){setAuthMsg('Entre ton email ci-dessus d\'abord.','error');return}
+  try{
+    const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname})
+    if(error)throw error
+    setAuthMsg('Email de réinitialisation envoyé !','success')
+  }catch(e){setAuthMsg(e.message,'error')}
+}
+
+// ══════════════════════════════════════════════
+// SUPABASE INIT
+// ══════════════════════════════════════════════
+async function initSupabase(){
+  if(SUPABASE_URL.includes('XXXXXXXXXXXX')){
+    setSyncStatus('offline','MODE LOCAL')
+    setAuthMsg('Configure tes clés Supabase dans index.html pour activer la connexion.','info')
+    loadModulesLocal();renderModules();return
+  }
+  try{
+    const{createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
+    sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}})
+    sb.auth.onAuthStateChange(async(_event,session)=>{
+      if(session?.user){
+        currentUser=session.user;hideAuthOverlay()
+        await loadProfile(currentUser)
+        await loadModulesFromCloud(currentUser.id)
+      }else{
+        currentUser=null;loadModulesLocal()
+        if(MODULES.length){renderModules();setSyncStatus('offline','MODE LOCAL')}
+        else showAuthOverlay()
+      }
     })
-    if(error) throw error
-    clearError()
-    document.getElementById('auth-error').style.display='block'
-    document.getElementById('auth-error').style.color='var(--success)'
-    document.getElementById('auth-error').textContent='✓ Compte créé ! Vérifie ton email pour confirmer.'
-    btn.disabled=false; btn.textContent='CRÉER MON COMPTE'
-  } catch(e){
-    showError(e.message); btn.disabled=false; btn.textContent='CRÉER MON COMPTE'
+    const{data:{session}}=await sb.auth.getSession()
+    if(!session){loadModulesLocal();renderModules();showAuthOverlay()}
+  }catch(e){
+    console.error('Supabase:',e)
+    setSyncStatus('error','ERREUR')
+    loadModulesLocal();renderModules();showAuthOverlay()
   }
 }
 
-window.doSignOut = async function(){
-  closeDropdown()
-  await sb.auth.signOut()
-  MODULES=[]; currentUser=null; currentProfile=null
-  renderModules()
-  showAuthOverlay()
-}
-
-window.showResetPassword = async function(){
-  const email=document.getElementById('login-email').value.trim()
-  if(!email){ showError('Entre ton email ci-dessus d\'abord.'); return }
-  try{
-    const { error } = await sb.auth.resetPasswordForEmail(email)
-    if(error) throw error
-    toast('Email de réinitialisation envoyé !', 'success')
-  } catch(e){ showError(e.message) }
-}
-
-function showAuthOverlay(){ document.getElementById('auth-overlay').classList.add('visible') }
-function hideAuthOverlay(){ document.getElementById('auth-overlay').classList.remove('visible') }
-
-// ════════════════════════════════════════════════════
-// SESSION & PROFIL
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// PROFIL
+// ══════════════════════════════════════════════
 async function loadProfile(user){
-  const { data } = await sb.from('profiles').select('*').eq('id',user.id).single()
-  currentProfile = data
-  const name = data?.display_name || user.email.split('@')[0]
-  document.getElementById('user-name').textContent = name.toUpperCase().slice(0,10)
-  document.getElementById('user-avatar').textContent = name[0].toUpperCase()
-  document.getElementById('dd-name').textContent = name
-  document.getElementById('dd-email').textContent = user.email
-  document.getElementById('sp-display-name').value = name
-  document.getElementById('sp-email').value = user.email
+  try{
+    const{data}=await sb.from('profiles').select('*').eq('id',user.id).single()
+    currentProfile=data
+    const name=data?.display_name||user.user_metadata?.full_name||user.email.split('@')[0]
+    const avatarUrl=data?.avatar_url||user.user_metadata?.avatar_url||null
+    document.getElementById('user-name').textContent=name.toUpperCase().slice(0,12)
+    const avatarEl=document.getElementById('user-avatar')
+    if(avatarUrl){avatarEl.innerHTML=`<img src="${avatarUrl}" alt="${name}"/>`}
+    else{avatarEl.textContent=name[0].toUpperCase()}
+    document.getElementById('dd-name').textContent=name
+    document.getElementById('dd-email').textContent=user.email
+    document.getElementById('sp-display-name').value=name
+    document.getElementById('sp-email').value=user.email||''
+    const provider=user.app_metadata?.provider||'email'
+    document.getElementById('sp-provider').value=provider==='google'?'Google':'Email / mot de passe'
+  }catch(e){console.warn('loadProfile:',e)}
 }
 
+// ══════════════════════════════════════════════
+// CLOUD SYNC
+// ══════════════════════════════════════════════
 async function loadModulesFromCloud(userId){
   setSyncStatus('syncing','SYNC...')
-  const { data, error } = await sb
-    .from('user_modules')
-    .select('*')
-    .eq('user_id', userId)
-    .order('position', { ascending:true })
-  if(error){ setSyncStatus('error','ERREUR SYNC'); return }
-  MODULES = (data||[]).map(r=>({
-    name:r.name, icon:r.icon, sub:r.sub,
-    content:r.content, is_active:r.is_active??true,
-    permissions:r.permissions??{}, config:r.config??{},
-    _dbId: r.id
-  }))
-  saveModulesLocal()
-  renderModules()
-  setSyncStatus('ok','EN LIGNE')
+  try{
+    const{data,error}=await sb.from('user_modules').select('*').eq('user_id',userId).order('position',{ascending:true})
+    if(error)throw error
+    MODULES=(data||[]).map(r=>({name:r.name,icon:r.icon,sub:r.sub,content:r.content,is_active:r.is_active??true,permissions:r.permissions??{},config:r.config??{}}))
+    saveModulesLocal();renderModules();setSyncStatus('ok','EN LIGNE')
+  }catch(e){setSyncStatus('error','ERREUR SYNC');toast('Erreur sync : '+e.message,'error')}
 }
-
 async function pushModulesToCloud(){
-  if(!currentUser) return
+  if(!currentUser||!sb)return
   setSyncStatus('syncing','SYNC...')
   try{
-    // Delete then re-insert strategy
-    await sb.from('user_modules').delete().eq('user_id', currentUser.id)
+    await sb.from('user_modules').delete().eq('user_id',currentUser.id)
     if(MODULES.length){
-      const rows = MODULES.map((m,i)=>({
-        user_id:   currentUser.id,
-        position:  i,
-        name:      m.name,
-        icon:      m.icon,
-        sub:       m.sub||'',
-        content:   m.content||'',
-        is_active: m.is_active??true,
-        permissions: m.permissions??{},
-        config:    m.config??{},
-        updated_at: new Date().toISOString()
-      }))
-      const { error } = await sb.from('user_modules').insert(rows)
-      if(error) throw error
+      const rows=MODULES.map((m,i)=>({user_id:currentUser.id,position:i,name:m.name,icon:m.icon,sub:m.sub||'',content:m.content||'',is_active:m.is_active??true,permissions:m.permissions??{},config:m.config??{},updated_at:new Date().toISOString()}))
+      const{error}=await sb.from('user_modules').insert(rows)
+      if(error)throw error
     }
-    saveModulesLocal()
-    setSyncStatus('ok','EN LIGNE')
-  } catch(e){
-    setSyncStatus('error','ERREUR SYNC')
-    toast('Erreur sync : '+e.message,'error')
-  }
+    saveModulesLocal();setSyncStatus('ok','EN LIGNE')
+  }catch(e){setSyncStatus('error','ERREUR SYNC');toast('Erreur sync : '+e.message,'error')}
 }
+function debouncedSync(){clearTimeout(syncTimeout);syncTimeout=setTimeout(()=>{if(currentUser&&sb)pushModulesToCloud()},2000)}
+function saveModulesLocal(){try{localStorage.setItem('jarvis_modules',JSON.stringify(MODULES))}catch(e){}}
+function loadModulesLocal(){try{const r=localStorage.getItem('jarvis_modules');if(r)MODULES=JSON.parse(r)}catch(e){MODULES=[]}}
 
-function debouncedSync(){
-  clearTimeout(syncTimeout)
-  syncTimeout = setTimeout(()=>{ if(currentUser) pushModulesToCloud() }, 2000)
-}
-
-// ════════════════════════════════════════════════════
-// PERSISTANCE LOCALE (fallback offline)
-// ════════════════════════════════════════════════════
-function saveModulesLocal(){
-  try{ localStorage.setItem('jarvis_modules', JSON.stringify(MODULES)) } catch(e){}
-}
-function loadModulesLocal(){
-  try{
-    const raw=localStorage.getItem('jarvis_modules')
-    if(raw) MODULES=JSON.parse(raw)
-  } catch(e){ MODULES=[] }
-}
-
-// ════════════════════════════════════════════════════
-// JARVIS STATE (HUD)
-// ════════════════════════════════════════════════════
-let jarvisState = 'online'
-window.setState = function(s){
-  jarvisState = s
-  const L={online:'EN LIGNE',listening:'ÉCOUTE',working:'TRAVAILLE',speaking:'PARLE'}
-  document.getElementById('state-label').textContent = L[s]
-  document.getElementById('status-text') // no longer exists, skip
-  document.querySelectorAll('.state-btn').forEach(b=>{
-    b.classList.toggle('active', b.textContent.trim()===L[s])
-  })
-  window.JARVIS.setState = ()=>s
-}
-
-// ════════════════════════════════════════════════════
-// HUD CANVAS
-// ════════════════════════════════════════════════════
-const canvas = document.getElementById('hud')
-const ctx    = canvas.getContext('2d')
-let W=0,H=0,cx=0,cy=0,t=0
-const NPART = 200
-let particles=[]
-
-function resizeHUD(){
-  const wrap  = document.getElementById('hud-wrap')
-  const available = wrap.offsetHeight - 24
-  const size  = Math.min(available, wrap.offsetWidth - 24)
-  const S     = Math.max(180, size)
-  const el    = document.getElementById('jarvis-center')
-  el.style.width = S+'px'; el.style.height = S+'px'
-  canvas.width = S; canvas.height = S
-  W=S; H=S; cx=S/2; cy=S/2
-  buildParticles()
-}
-
-function buildParticles(){
-  const R = W * .30
-  particles = []
-  for(let i=0;i<NPART;i++){
-    const ang = Math.random() * Math.PI * 2
-    const u   = (i + Math.random()) / NPART
-    const dist= R * Math.sqrt(u) * .92
-    const listenAng = (i / NPART) * Math.PI * 2 + (Math.random() - .5) * (Math.PI * 2 / NPART) * 1.5
-    let listenR
-    const rnd = Math.random()
-    if(rnd < .82)      listenR = R * (.76 + Math.random()*.22)
-    else if(rnd < .94) listenR = R * (.64 + Math.random()*.12)
-    else if(rnd < .98) listenR = R * (.52 + Math.random()*.12)
-    else               listenR = R * (.40 + Math.random()*.12)
-    particles.push({
-      ang, dist, listenR, listenAng,
-      x: cx+Math.cos(ang)*dist, y: cy+Math.sin(ang)*dist,
-      tx:0, ty:0,
-      sz: 0.9, ph: Math.random()*Math.PI*2,
-      sp: (Math.random()*.35+.08)*(Math.random()<.5?1:-1),
-      al: Math.random()*.5+.4,
-    })
-  }
-}
-
-function drawHUD(){
-  t += 0.016
-  ctx.clearRect(0,0,W,H)
-  const state = jarvisState
-  const spd   = {online:.18,listening:.9,working:1.5,speaking:.65}[state]
-  const rot   = t * spd * .35
-  const FREQ_15 = (2*Math.PI) / 4
-  const FREQ_25 = (2*Math.PI) / 2.4
-  const breathOn  = Math.sin(t * FREQ_15)
-  const breathWrk = Math.sin(t * FREQ_25)
-
-  const bgG=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.5)
-  bgG.addColorStop(0,'rgba(0,45,110,.45)'); bgG.addColorStop(.65,'rgba(0,12,45,.2)'); bgG.addColorStop(1,'rgba(0,4,16,0)')
-  ctx.beginPath();ctx.arc(cx,cy,W*.5,0,Math.PI*2);ctx.fillStyle=bgG;ctx.fill()
-
-  const GAP=W*.038; const R4=W*.310; const R3=R4+GAP; const R2=R3+GAP*.5; const R1=R2+GAP*1.2
-
-  ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot)
-  ctx.globalAlpha=.45; ctx.strokeStyle='#44ccff'; ctx.lineWidth=1
-  ctx.setLineDash([3,4]); ctx.beginPath(); ctx.arc(0,0,R1,0,Math.PI*2); ctx.stroke()
-  ctx.setLineDash([])
-  for(let i=0;i<24;i++){
-    const a=(i/24)*Math.PI*2; const maj=i%6===0, mid=i%2===0; const len=maj?11:mid?7:4
-    ctx.globalAlpha=maj?.85:mid?.5:.28; ctx.strokeStyle='#44ccff'; ctx.lineWidth=maj?1.8:mid?1.2:.8
-    ctx.beginPath(); ctx.moveTo(Math.cos(a)*R1,Math.sin(a)*R1); ctx.lineTo(Math.cos(a)*(R1+len),Math.sin(a)*(R1+len)); ctx.stroke()
-  }
-  ctx.restore()
-
-  ctx.save(); ctx.translate(cx,cy); ctx.rotate(-rot*.5)
-  ctx.globalAlpha=.22; ctx.strokeStyle='#2299dd'; ctx.lineWidth=.7
-  ctx.setLineDash([2,7]); ctx.beginPath(); ctx.arc(0,0,R2,0,Math.PI*2); ctx.stroke()
-  ctx.setLineDash([]); ctx.restore()
-
-  const arcSpan=Math.PI*(110/180)
-  ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot*1.1)
-  ctx.strokeStyle='#44bbee'; ctx.lineWidth=1.4; ctx.setLineDash([]); ctx.globalAlpha=.58
-  for(let i=0;i<3;i++){
-    const center=(i/3)*Math.PI*2
-    ctx.beginPath(); ctx.arc(0,0,R3,center-arcSpan/2,center+arcSpan/2); ctx.stroke()
-  }
-  ctx.restore()
-
-  ctx.save(); ctx.globalAlpha=.28; ctx.strokeStyle='#2299cc'; ctx.lineWidth=.8
-  ctx.setLineDash([]); ctx.beginPath(); ctx.arc(cx,cy,R4,0,Math.PI*2); ctx.stroke(); ctx.restore()
-
-  particles.forEach(p=>{
-    let tx, ty
-    if(state==='online'){ const e=1+breathOn*.18; tx=cx+Math.cos(p.ang)*p.dist*e; ty=cy+Math.sin(p.ang)*p.dist*e }
-    else if(state==='listening'){ const na=p.listenAng+t*.55; tx=cx+Math.cos(na)*p.listenR; ty=cy+Math.sin(na)*p.listenR }
-    else if(state==='working'){ const sc=1+breathWrk*.16; tx=cx+Math.cos(p.ang)*p.dist*sc; ty=cy+Math.sin(p.ang)*p.dist*sc }
-    else { const amp=window.JARVIS.audioAmplitude||0; const wave=Math.sin(t*4+p.ph*3)*(.07+amp*.35); tx=cx+Math.cos(p.ang+t*.12)*p.dist*(1+wave); ty=cy+Math.sin(p.ang+t*.12)*p.dist*(1+wave) }
-    const rdx=tx-cx, rdy=ty-cy, rd=Math.hypot(rdx,rdy)
-    if(rd>R4){ tx=cx+rdx*(R4/rd); ty=cy+rdy*(R4/rd) }
-    p.x+=(tx-p.x)*.07; p.y+=(ty-p.y)*.07
-    const d=Math.hypot(p.x-cx,p.y-cy); const ctr=Math.max(0,1-d/(R4*.4))
-    const al=p.al*(.85+Math.sin(t*.7+p.ph)*.15)+ctr*.12
-    if(al<.05) return
-    let haloR, haloAl
-    if(state==='working'){ const hS=breathWrk*.5+.5; haloR=p.sz*(2+hS*4.5); haloAl=al*(.2+hS*.6) }
-    else { haloR=p.sz*2; haloAl=al*.22 }
-    const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR)
-    gr.addColorStop(0,`rgba(0,160,255,${haloAl})`); gr.addColorStop(1,'rgba(0,100,255,0)')
-    ctx.beginPath();ctx.arc(p.x,p.y,haloR,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill()
-    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2)
-    ctx.fillStyle=`rgba(245,253,255,${Math.min(1,al*3)})`;ctx.fill()
-  })
-
-  const hg=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025)
-  hg.addColorStop(0,'rgba(60,160,255,.15)'); hg.addColorStop(1,'rgba(0,80,180,0)')
-  ctx.beginPath();ctx.arc(cx,cy,W*.025,0,Math.PI*2);ctx.fillStyle=hg;ctx.fill()
-
-  requestAnimationFrame(drawHUD)
-}
-
-// Pause animation quand onglet caché
-document.addEventListener('visibilitychange', ()=>{
-  if(!document.hidden && currentUser) debouncedSync()
-})
-
-window.addEventListener('resize', resizeHUD)
-setTimeout(()=>{ resizeHUD(); drawHUD() }, 60)
-
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // MODULES
-// ════════════════════════════════════════════════════
-let activeSlot=null, swapSource=null
-
-window.renderModules = function(){
-  const row=document.getElementById('modules-row')
-  row.innerHTML=''
-
+// ══════════════════════════════════════════════
+let activeSlot=null,swapSource=null
+window.renderModules=function(){
+  const row=document.getElementById('modules-row');row.innerHTML=''
   MODULES.forEach((m,i)=>{
     const slot=document.createElement('div')
     slot.className='module-slot loaded'+(m.is_active===false?' inactive':'')
     slot.innerHTML=`
-      <div class="mod-menu-btn" id="menu-btn-${i}" onclick="toggleMenu(event,${i})">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="mod-menu-btn" onclick="toggleMenu(event,${i})"><span></span><span></span><span></span></div>
       <div class="mod-menu" id="menu-${i}">
         <div class="mod-menu-item" onclick="openModule(${i});closeMenus()">▶ Ouvrir</div>
         <div class="mod-menu-item" onclick="toggleModuleActive(${i});closeMenus()">${m.is_active===false?'✓ Activer':'⏸ Désactiver'}</div>
         <div class="mod-menu-sep"></div>
         <div class="mod-menu-item" onclick="startSwap(${i});closeMenus()">⇄ Déplacer</div>
-        <div class="mod-menu-item" onclick="replaceModule(${i});closeMenus()">↺ Remplacer le fichier</div>
+        <div class="mod-menu-item" onclick="replaceModule(${i});closeMenus()">↺ Remplacer</div>
         <div class="mod-menu-sep"></div>
         <div class="mod-menu-item danger" onclick="removeModule(${i});closeMenus()">✕ Retirer</div>
       </div>
-      <div class="mod-icon">${m.icon}</div>
-      <div class="mod-name">${m.name}</div>
+      <div class="mod-icon" onclick="openModule(${i})">${m.icon}</div>
+      <div class="mod-name" onclick="openModule(${i})">${m.name}</div>
       <div class="mod-sub">${m.sub||''}</div>
-      <div class="mod-status-badge ${m.is_active===false?'inactive':'active'}">${m.is_active===false?'INACTIF':'ACTIF'}</div>
-    `
-    slot.querySelector('.mod-icon').onclick=()=>{ if(m.is_active!==false) openModule(i) }
-    slot.querySelector('.mod-name').onclick=()=>{ if(m.is_active!==false) openModule(i) }
+      <div class="mod-status-badge ${m.is_active===false?'inactive':'active'}">${m.is_active===false?'INACTIF':'ACTIF'}</div>`
     row.appendChild(slot)
   })
-
   const add=document.createElement('div')
   add.className='module-slot add-slot'
-  add.innerHTML=`<div class="plus-circle">+</div><div class="plus-label">MODULE</div>`
-  add.onclick=()=>{ activeSlot=null; triggerFilePicker() }
+  add.innerHTML='<div class="plus-circle">+</div><div class="plus-label">MODULE</div>'
+  add.onclick=()=>{activeSlot=null;triggerFilePicker()}
   row.appendChild(add)
 }
-
-window.toggleMenu = function(e,i){
-  e.stopPropagation()
-  const menu=document.getElementById('menu-'+i)
-  const wasOpen=menu.classList.contains('open')
-  closeMenus()
-  if(!wasOpen) menu.classList.add('open')
-}
-window.closeMenus = function(){ document.querySelectorAll('.mod-menu').forEach(m=>m.classList.remove('open')) }
-document.addEventListener('click', closeMenus)
-
-function triggerFilePicker(){
-  document.getElementById('file-input').value=''
-  document.getElementById('file-input').click()
-}
-
-window.loadModule = function(e){
-  const file=e.target.files[0]; if(!file) return
+window.toggleMenu=function(e,i){e.stopPropagation();const m=document.getElementById('menu-'+i),was=m.classList.contains('open');closeMenus();if(!was)m.classList.add('open')}
+window.closeMenus=function(){document.querySelectorAll('.mod-menu').forEach(m=>m.classList.remove('open'))}
+document.addEventListener('click',closeMenus)
+function triggerFilePicker(){document.getElementById('file-input').value='';document.getElementById('file-input').click()}
+window.loadModule=function(e){
+  const file=e.target.files[0];if(!file)return
   const reader=new FileReader()
   reader.onload=ev=>{
-    const html=ev.target.result
-    const titleMatch=html.match(/<title[^>]*>([^<]+)<\/title>/i)
-    const name=titleMatch?titleMatch[1].trim():file.name.replace('.html','')
-    const icon=/tjp|trading/i.test(name)?'📈':/rpg|game|gamif/i.test(name)?'⚔️':/agenda|cal/i.test(name)?'📅':/jarvis/i.test(name)?'🤖':'📦'
-    const mod={ name, icon, sub:file.name, content:html, is_active:true, permissions:{}, config:{} }
-    if(activeSlot!==null){ MODULES[activeSlot]=mod } else { MODULES.push(mod) }
-    activeSlot=null
-    renderModules()
-    debouncedSync()
-    toast('Module ajouté : '+name, 'success')
+    const html=ev.target.result,tm=html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    const name=tm?tm[1].trim():file.name.replace('.html','')
+    const icon=/tjp|trading/i.test(name)?'📈':/rpg|game/i.test(name)?'⚔️':/agenda|cal/i.test(name)?'📅':/jarvis/i.test(name)?'🤖':'📦'
+    const mod={name,icon,sub:file.name,content:html,is_active:true,permissions:{},config:{}}
+    if(activeSlot!==null)MODULES[activeSlot]=mod;else MODULES.push(mod)
+    activeSlot=null;renderModules();debouncedSync();toast('Module ajouté : '+name,'success')
   }
   reader.readAsText(file)
 }
-
-window.replaceModule = function(i){ activeSlot=i; triggerFilePicker() }
-
-window.removeModule = async function(i){
-  const ok=await confirm2('Retirer le module','Retirer "'+MODULES[i].name+'" de ta plateforme ?','Retirer')
-  if(!ok) return
-  MODULES.splice(i,1); renderModules(); debouncedSync()
-  toast('Module retiré','info')
+window.replaceModule=function(i){activeSlot=i;triggerFilePicker()}
+window.removeModule=async function(i){
+  const ok=await confirm2('Retirer','Retirer "'+MODULES[i].name+'" ?','Retirer')
+  if(!ok)return
+  MODULES.splice(i,1);renderModules();debouncedSync();toast('Module retiré','info')
 }
-
-window.toggleModuleActive = function(i){
-  MODULES[i].is_active = !(MODULES[i].is_active ?? true)
-  renderModules(); debouncedSync()
-  toast(MODULES[i].is_active ? 'Module activé' : 'Module désactivé', 'success')
+window.toggleModuleActive=function(i){
+  MODULES[i].is_active=!(MODULES[i].is_active??true)
+  renderModules();debouncedSync();toast(MODULES[i].is_active?'Module activé':'Module désactivé','success')
 }
-
-window.startSwap = function(i){
-  if(swapSource!==null && swapSource!==i){
-    const tmp=MODULES[swapSource]; MODULES[swapSource]=MODULES[i]; MODULES[i]=tmp
-    swapSource=null; renderModules(); debouncedSync()
-    toast('Modules échangés','success')
-  } else {
+window.startSwap=function(i){
+  if(swapSource!==null&&swapSource!==i){
+    const tmp=MODULES[swapSource];MODULES[swapSource]=MODULES[i];MODULES[i]=tmp
+    swapSource=null;renderModules();debouncedSync();toast('Modules échangés','success')
+  }else{
     swapSource=i
-    document.querySelectorAll('.module-slot.loaded').forEach((s,idx)=>{
-      s.style.outline = idx!==i ? '1px dashed rgba(0,170,255,.5)' : '1px solid var(--blue)'
-    })
-    toast('Sélectionne un autre module pour l\'échanger','info')
+    document.querySelectorAll('.module-slot.loaded').forEach((s,idx)=>{s.style.outline=idx!==i?'1px dashed rgba(0,170,255,.5)':'1px solid var(--blue)'})
+    toast('Clique un autre module pour l\'échanger','info')
   }
 }
-
-window.openModule = function(i){
-  const m=MODULES[i]; if(!m||m.is_active===false) return
+window.openModule=function(i){
+  const m=MODULES[i];if(!m||m.is_active===false)return
   document.getElementById('mf-title').textContent=m.name.toUpperCase()
   const blob=new Blob([m.content],{type:'text/html'})
   document.getElementById('module-iframe').src=URL.createObjectURL(blob)
   document.getElementById('module-frame').classList.add('open')
 }
-window.closeModule = function(){
-  document.getElementById('module-frame').classList.remove('open')
-  document.getElementById('module-iframe').src='about:blank'
-}
+window.closeModule=function(){document.getElementById('module-frame').classList.remove('open');document.getElementById('module-iframe').src='about:blank'}
 
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // IMPORT / EXPORT
-// ════════════════════════════════════════════════════
-window.exportModules = function(){
-  const json=JSON.stringify({ version:'1.0', exported_at:new Date().toISOString(), modules:MODULES }, null, 2)
-  const blob=new Blob([json],{type:'application/json'})
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob)
-  a.download='jarvis-modules-backup.json'; a.click()
+// ══════════════════════════════════════════════
+window.exportModules=function(){
+  const blob=new Blob([JSON.stringify({version:'1.0',exported_at:new Date().toISOString(),modules:MODULES},null,2)],{type:'application/json'})
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='jarvis-modules-backup.json';a.click()
   toast('Export téléchargé','success')
 }
-
-window.importModules = function(e){
-  const file=e.target.files[0]; if(!file) return
+window.importModules=function(e){
+  const file=e.target.files[0];if(!file)return
   const reader=new FileReader()
   reader.onload=async ev=>{
     try{
-      const data=JSON.parse(ev.target.result)
-      const mods=data.modules||data
-      if(!Array.isArray(mods)) throw new Error('Format invalide')
-      const ok=await confirm2('Importer les modules','Importer '+mods.length+' modules ? Les modules actuels seront conservés.','Importer')
-      if(!ok) return
-      MODULES=[...MODULES,...mods]
-      renderModules(); debouncedSync()
-      toast(mods.length+' modules importés','success')
-    } catch(e){ toast('Erreur import : '+e.message,'error') }
+      const data=JSON.parse(ev.target.result),mods=data.modules||data
+      if(!Array.isArray(mods))throw new Error('Format invalide')
+      const ok=await confirm2('Importer','Importer '+mods.length+' modules ?','Importer')
+      if(!ok)return
+      MODULES=[...MODULES,...mods];renderModules();debouncedSync();toast(mods.length+' modules importés','success')
+    }catch(e){toast('Erreur import : '+e.message,'error')}
   }
-  reader.readAsText(file)
-  e.target.value=''
+  reader.readAsText(file);e.target.value=''
 }
 
-// ════════════════════════════════════════════════════
-// USER DROPDOWN
-// ════════════════════════════════════════════════════
-window.toggleUserDropdown = function(){
-  document.getElementById('user-dropdown').classList.toggle('open')
-}
-window.closeDropdown = function(){
-  document.getElementById('user-dropdown').classList.remove('open')
-}
-document.addEventListener('click', e=>{
-  if(!document.getElementById('user-btn').contains(e.target))
-    closeDropdown()
-})
-
-// ════════════════════════════════════════════════════
-// PARAMÈTRES
-// ════════════════════════════════════════════════════
-window.openSettings = function(){
-  document.getElementById('settings-panel').classList.add('open')
-}
-window.closeSettings = function(){
-  document.getElementById('settings-panel').classList.remove('open')
-}
-window.saveProfile = async function(){
-  if(!currentUser){ toast('Non connecté','error'); return }
+// ══════════════════════════════════════════════
+// DROPDOWN & PARAMÈTRES
+// ══════════════════════════════════════════════
+window.toggleUserDropdown=function(){document.getElementById('user-dropdown').classList.toggle('open')}
+window.closeDropdown=function(){document.getElementById('user-dropdown').classList.remove('open')}
+document.addEventListener('click',e=>{if(!document.getElementById('user-btn').contains(e.target))closeDropdown()})
+window.openSettings=function(){document.getElementById('settings-panel').classList.add('open')}
+window.closeSettings=function(){document.getElementById('settings-panel').classList.remove('open')}
+window.saveProfile=async function(){
+  if(!currentUser||!sb){toast('Non connecté','error');return}
   const name=document.getElementById('sp-display-name').value.trim()
-  if(!name) return
+  if(!name)return
   try{
-    await sb.from('profiles').upsert({ id:currentUser.id, display_name:name, updated_at:new Date().toISOString() })
-    document.getElementById('user-name').textContent = name.toUpperCase().slice(0,10)
-    document.getElementById('user-avatar').textContent = name[0].toUpperCase()
-    document.getElementById('dd-name').textContent = name
+    await sb.from('profiles').upsert({id:currentUser.id,display_name:name,updated_at:new Date().toISOString()})
+    document.getElementById('user-name').textContent=name.toUpperCase().slice(0,12)
+    const av=document.getElementById('user-avatar')
+    if(!av.querySelector('img'))av.textContent=name[0].toUpperCase()
+    document.getElementById('dd-name').textContent=name
     toast('Profil enregistré','success')
-  } catch(e){ toast('Erreur : '+e.message,'error') }
+  }catch(e){toast('Erreur : '+e.message,'error')}
+}
+window.forceSync=async function(){
+  if(!currentUser||!sb){toast('Non connecté','error');return}
+  await pushModulesToCloud();toast('Synchronisation terminée','success')
 }
 
-window.forcSync = async function(){
-  closeDropdown()
-  if(!currentUser){ toast('Non connecté','error'); return }
-  await pushModulesToCloud()
-  toast('Synchronisation terminée','success')
-}
-
-// ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // ONLINE / OFFLINE
-// ════════════════════════════════════════════════════
-window.addEventListener('online', ()=>{
-  isOnline=true; setSyncStatus('ok','EN LIGNE')
-  if(currentUser) loadModulesFromCloud(currentUser.id)
-})
-window.addEventListener('offline', ()=>{
-  isOnline=false; setSyncStatus('offline','HORS LIGNE')
-  toast('Hors ligne — mode local actif','info')
-})
+// ══════════════════════════════════════════════
+window.addEventListener('online',()=>{setSyncStatus('ok','EN LIGNE');if(currentUser&&sb)loadModulesFromCloud(currentUser.id)})
+window.addEventListener('offline',()=>{setSyncStatus('offline','HORS LIGNE');toast('Hors ligne — mode local actif','info')})
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentUser&&sb)debouncedSync()})
 
-// ════════════════════════════════════════════════════
-// INIT — ÉCOUTE AUTH
-// ════════════════════════════════════════════════════
-sb.auth.onAuthStateChange(async (_event, session)=>{
-  if(session?.user){
-    currentUser = session.user
-    hideAuthOverlay()
-    await loadProfile(currentUser)
-    if(isOnline){
-      await loadModulesFromCloud(currentUser.id)
-    } else {
-      loadModulesLocal(); renderModules()
-      setSyncStatus('offline','HORS LIGNE')
-    }
-  } else {
-    currentUser = null
-    // Essaie de charger en local avant de forcer l'auth
-    loadModulesLocal()
-    if(MODULES.length){
-      renderModules()
-      setSyncStatus('offline','MODE LOCAL')
-      document.getElementById('user-name').textContent='CONNEXION'
-      document.getElementById('user-avatar').textContent='?'
-    } else {
-      showAuthOverlay()
-    }
+// ══════════════════════════════════════════════
+// PONT INTER-MODULES
+// ══════════════════════════════════════════════
+window.addEventListener('message',e=>{
+  const d=e.data;if(!d||!d.type)return
+  switch(d.type){
+    case 'JARVIS_SET_STATE':if(['online','listening','working','speaking'].includes(d.state))setState(d.state);break
+    case 'JARVIS_AUDIO_AMPLITUDE':window.JARVIS.audioAmplitude=Math.max(0,Math.min(1,d.value||0));break
+    case 'JARVIS_GET_USER':document.getElementById('module-iframe').contentWindow?.postMessage({type:'JARVIS_USER_INFO',userId:currentUser?.id||null,displayName:currentProfile?.display_name||null,email:currentUser?.email||null},'*');break
+    case 'JARVIS_TOAST':toast(d.message||'',d.style||'info');break
   }
 })
 
-// ════════════════════════════════════════════════════
-// PWA Service Worker
-// ════════════════════════════════════════════════════
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js')
-    .catch(e=>console.warn('SW:', e))
-}
+// ══════════════════════════════════════════════
+// PWA
+// ══════════════════════════════════════════════
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})
 
-// ════════════════════════════════════════════════════
-// PONT DE COMMUNICATION INTER-MODULES (postMessage)
-// ════════════════════════════════════════════════════
-window.addEventListener('message', e => {
-  const d = e.data
-  if (!d || !d.type) return
-
-  switch (d.type) {
-    case 'JARVIS_SET_STATE':
-      if (['online','listening','working','speaking'].includes(d.state))
-        setState(d.state)
-      break
-
-    case 'JARVIS_AUDIO_AMPLITUDE':
-      window.JARVIS.audioAmplitude = Math.max(0, Math.min(1, d.value || 0))
-      break
-
-    case 'JARVIS_GET_USER':
-      // Répond à l'iframe avec les infos utilisateur
-      document.getElementById('module-iframe').contentWindow?.postMessage({
-        type: 'JARVIS_USER_INFO',
-        userId:      currentUser?.id      || null,
-        displayName: currentProfile?.display_name || null,
-        email:       currentUser?.email   || null
-      }, '*')
-      break
-
-    case 'JARVIS_TOAST':
-      toast(d.message || '', d.style || 'info')
-      break
-  }
-})
-
-// Init modules row
+// ══════════════════════════════════════════════
+// DÉMARRAGE
+// ══════════════════════════════════════════════
 renderModules()
-
+initSupabase()
 </script>
 </body>
 </html>
