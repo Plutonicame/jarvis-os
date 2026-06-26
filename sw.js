@@ -1,17 +1,20 @@
 // ═══════════════════════════════════════════════════
-// sw.js — Jarvis OS Service Worker
+// sw.js — Jarvis OS Service Worker v2
 // ═══════════════════════════════════════════════════
-const CACHE_NAME = 'jarvis-os-v1'
+const CACHE_NAME = 'jarvis-os-v2'
 const ASSETS = [
-  '/index.html',
-  '/auth.js',
-  '/db.js',
-  '/manifest.json'
+  '/jarvis-os/',
+  '/jarvis-os/index.html',
+  '/jarvis-os/manifest.json',
+  '/jarvis-os/icon-192.png',
+  '/jarvis-os/icon-512.png'
 ]
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(ASSETS).catch(() => {})
+    })
   )
   self.skipWaiting()
 })
@@ -26,7 +29,19 @@ self.addEventListener('activate', e => {
 })
 
 self.addEventListener('fetch', e => {
-  // Réseau d'abord, cache en fallback
+  const url = new URL(e.request.url)
+
+  // Toujours servir index.html pour les URLs de navigation
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).catch(() =>
+        caches.match('/jarvis-os/index.html')
+      )
+    )
+    return
+  }
+
+  // Réseau d'abord, cache en fallback pour les assets
   e.respondWith(
     fetch(e.request)
       .then(resp => {
