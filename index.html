@@ -410,7 +410,7 @@ let MODULES=[],syncTimeout=null,confirmResolve=null
 
 // ⚠️ REMPLACE CES DEUX VALEURS PAR LES TIENNES
 const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOj'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY1NjgsImV4cCI6MjA5Nzk3MjU2OH0.9XrL6fP90b84R6VzbD4LS-rVaUxTdwRFimRVixrsdcw'
 
 // ══════════════════════════════════════════════
 // UTILITAIRES
@@ -543,20 +543,40 @@ async function initSupabase(){
   }
   try{
     const{createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
-    sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}})
-    sb.auth.onAuthStateChange(async(_event,session)=>{
-      if(session?.user){
-        currentUser=session.user;hideAuthOverlay()
-        await loadProfile(currentUser)
-        await loadModulesFromCloud(currentUser.id)
-      }else{
+    sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
+      auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,flowType:'implicit'}
+    })
+
+    sb.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED'||event==='USER_UPDATED'){
+        if(session?.user){
+          currentUser=session.user
+          hideAuthOverlay()
+          if(window.location.hash)window.history.replaceState(null,'',window.location.pathname)
+          await loadProfile(currentUser)
+          await loadModulesFromCloud(currentUser.id)
+        }
+      } else if(event==='SIGNED_OUT'){
         currentUser=null;loadModulesLocal()
-        if(MODULES.length){renderModules();setSyncStatus('offline','MODE LOCAL')}
-        else showAuthOverlay()
+        renderModules();setSyncStatus('offline','MODE LOCAL')
+        showAuthOverlay()
       }
     })
+
     const{data:{session}}=await sb.auth.getSession()
-    if(!session){loadModulesLocal();renderModules();showAuthOverlay()}
+    if(session?.user){
+      currentUser=session.user
+      hideAuthOverlay()
+      await loadProfile(currentUser)
+      await loadModulesFromCloud(currentUser.id)
+    } else {
+      const hash=window.location.hash
+      if(hash&&hash.includes('access_token')){
+        setSyncStatus('syncing','CONNEXION...')
+      } else {
+        loadModulesLocal();renderModules();showAuthOverlay()
+      }
+    }
   }catch(e){
     console.error('Supabase:',e)
     setSyncStatus('error','ERREUR')
