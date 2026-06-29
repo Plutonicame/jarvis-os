@@ -180,19 +180,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .pin-link{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:6px 14px;cursor:pointer;letter-spacing:1px;transition:all .2s;margin-top:4px}
 .pin-link:hover{color:var(--blue2);border-color:var(--blue)}
 
-/* OTP inputs */
-.otp-input{
-  width:46px;height:56px;border-radius:10px;
-  border:1px solid rgba(0,170,255,.2);
-  background:rgba(0,20,60,.7);
-  color:var(--text);font-family:var(--mono);font-size:24px;
-  text-align:center;outline:none;transition:border-color .2s;
-  caret-color:var(--blue);
-}
-.otp-input:focus{border-color:var(--blue);box-shadow:0 0 8px rgba(0,170,255,.2)}
-.otp-input.filled{border-color:rgba(0,170,255,.4)}
-@media(max-width:420px){.otp-input{width:40px;height:50px;font-size:20px}}
-
 /* Bouton Google */
 .google-btn{width:100%;max-width:300px;padding:14px 20px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);color:#e8eaed;font-size:14px;font-family:var(--sans);font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:12px}
 .google-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);box-shadow:0 4px 24px rgba(0,0,0,.4);transform:translateY(-1px)}
@@ -396,29 +383,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   <div class="pin-pad" id="confirm-pad"></div>
 </div>
 
-<!-- ÉCRAN VÉRIFICATION EMAIL -->
-<div id="overlayVerifyEmail" class="auth-overlay">
-  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
-  <div class="ao-title">JARVIS OS</div>
-  <div class="ao-sub">Un code de vérification a été envoyé à</div>
-  <div class="ao-email" id="verify-email-display"></div>
-  <div class="ao-sub" style="font-size:10px;margin-top:-8px">Saisis le code reçu par email</div>
-  <div style="display:flex;gap:10px;margin:8px 0" id="otp-inputs-wrap">
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-    <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]"/>
-  </div>
-  <div class="pin-err" id="verify-err"></div>
-  <button class="google-btn" id="verify-btn" onclick="submitOTP()" style="max-width:300px;margin-top:4px">
-    Vérifier le code
-  </button>
-  <button class="pin-link" onclick="resendOTP()" id="resend-btn">↺ Renvoyer le code</button>
-  <button class="pin-link" onclick="doSignOut()" style="margin-top:0">← Changer de compte</button>
-</div>
-
 <!-- ÉCRAN CHANGER PIN — ancien PIN -->
 <div id="overlayOldPin" class="auth-overlay">
   <div class="ao-title">JARVIS OS</div>
@@ -452,10 +416,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 
 // ════════════════════════════════════════════
 // CONFIGURATION
-// ════════════════════════════════════════════
-// ⚠️ IMPORTANT SUPABASE : pour que la vérification email fonctionne,
-// va dans Supabase → Authentication → Providers → Email
-// Active "Enable Email OTP" et désactive "Confirm email" si activé
 // ════════════════════════════════════════════
 const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY1NjgsImV4cCI6MjA5Nzk3MjU2OH0.9XrL6fP90b84R6VzbD4LS-rVaUxTdwRFimRVixrsdcw'
@@ -822,7 +782,6 @@ window.doSignOut = async function(){
   currentUser = null; currentProfile = null; MODULES = []
   if(uid){
     localStorage.removeItem(lsKey.lastUid())
-    localStorage.removeItem(LS_PREFIX+'email_verified_'+uid)
   }
   if(sb){ try{ await sb.auth.signOut() }catch(e){} }
   document.getElementById('user-name').textContent = 'CONNEXION'
@@ -917,122 +876,13 @@ async function applySession(user){
   localStorage.setItem(lsKey.lastUid(), user.id)
   localStorage.setItem(lsKey.email(user.id), user.email||'')
   loadModulesLocal(); renderModules()
-
-  const hasPIN        = localStorage.getItem(lsKey.pin(user.id))
-  const verifiedKey   = LS_PREFIX+'email_verified_'+user.id
-  const isVerified    = localStorage.getItem(verifiedKey) === 'true'
-
-  if(hasPIN && isVerified){
-    // Appareil connu + PIN existant → saisie PIN directement
+  const hasPIN = localStorage.getItem(lsKey.pin(user.id))
+  if(hasPIN){
     showOverlay('overlayEnterPin')
     setupEnterPin()
-  } else if(hasPIN && !isVerified){
-    // PIN existant mais nouvel appareil → vérifie l'email d'abord
-    await sendOTP(user.email)
   } else {
-    // Pas de PIN → vérifie l'email avant de créer le PIN
-    await sendOTP(user.email)
-  }
-}
-
-// ── Envoi code OTP par email ──
-async function sendOTP(email){
-  showOverlay('overlayLoading')
-  try{
-    // Supabase envoie un OTP par email (magic link désactivé, juste OTP)
-    const { error } = await sb.auth.signInWithOtp({
-      email: email,
-      options: { shouldCreateUser: false }
-    })
-    if(error) throw error
-    document.getElementById('verify-email-display').textContent = email
-    setupOTPInputs()
-    showOverlay('overlayVerifyEmail')
-    document.getElementById('verify-err').textContent = ''
-    document.getElementById('verify-err').classList.remove('visible')
-    document.getElementById('resend-btn').disabled = false
-    document.getElementById('resend-btn').textContent = '↺ Renvoyer le code'
-  }catch(e){
-    // Si OTP non supporté ou erreur réseau → on passe quand même
-    console.warn('[Jarvis] OTP error:', e)
-    // Fallback : on fait confiance à Google OAuth et on continue
-    const verifiedKey = LS_PREFIX+'email_verified_'+currentUser.id
-    localStorage.setItem(verifiedKey, 'true')
-    const hasPIN = localStorage.getItem(lsKey.pin(currentUser.id))
-    if(hasPIN){ showOverlay('overlayEnterPin'); setupEnterPin() }
-    else { showOverlay('overlayCreatePin'); setupCreatePin() }
-  }
-}
-
-function setupOTPInputs(){
-  const inputs = document.querySelectorAll('.otp-input')
-  inputs.forEach((inp,i)=>{
-    inp.value = ''
-    inp.classList.remove('filled')
-    inp.oninput = ()=>{
-      inp.value = inp.value.replace(/[^0-9]/g,'').slice(0,1)
-      inp.classList.toggle('filled', inp.value.length>0)
-      if(inp.value && i<inputs.length-1) inputs[i+1].focus()
-      // Auto-submit si tous remplis
-      if([...inputs].every(x=>x.value)) submitOTP()
-    }
-    inp.onkeydown = e=>{
-      if(e.key==='Backspace' && !inp.value && i>0) inputs[i-1].focus()
-    }
-    inp.onpaste = e=>{
-      const text = (e.clipboardData||window.clipboardData).getData('text').replace(/[^0-9]/g,'')
-      if(text.length >= 6){
-        inputs.forEach((x,j)=>{ x.value=text[j]||''; x.classList.toggle('filled',!!x.value) })
-        setTimeout(submitOTP, 100)
-      }
-      e.preventDefault()
-    }
-  })
-  setTimeout(()=>inputs[0].focus(), 300)
-}
-
-window.submitOTP = async function(){
-  const inputs = document.querySelectorAll('.otp-input')
-  const code = [...inputs].map(x=>x.value).join('')
-  const err  = document.getElementById('verify-err')
-  if(code.length < 6){ err.textContent='Saisis les 6 chiffres.'; err.classList.add('visible'); return }
-  const btn = document.getElementById('verify-btn')
-  btn.disabled = true; btn.textContent = 'Vérification...'
-  try{
-    const { data, error } = await sb.auth.verifyOtp({
-      email: currentUser.email,
-      token: code,
-      type: 'email'
-    })
-    if(error) throw error
-    // Code correct → marque cet appareil comme vérifié
-    const verifiedKey = LS_PREFIX+'email_verified_'+currentUser.id
-    localStorage.setItem(verifiedKey, 'true')
-    err.textContent = ''; err.classList.remove('visible')
-    btn.disabled = false; btn.textContent = 'Vérifier le code'
-    // Continue vers PIN
-    const hasPIN = localStorage.getItem(lsKey.pin(currentUser.id))
-    if(hasPIN){ showOverlay('overlayEnterPin'); setupEnterPin() }
-    else { showOverlay('overlayCreatePin'); setupCreatePin() }
-  }catch(e){
-    err.textContent = 'Code incorrect ou expiré. Réessaie.'
-    err.classList.add('visible')
-    btn.disabled = false; btn.textContent = 'Vérifier le code'
-    // Vide les inputs
-    document.querySelectorAll('.otp-input').forEach(x=>{ x.value=''; x.classList.remove('filled') })
-    document.querySelector('.otp-input').focus()
-  }
-}
-
-window.resendOTP = async function(){
-  const btn = document.getElementById('resend-btn')
-  btn.disabled = true; btn.textContent = 'Envoi...'
-  try{
-    await sendOTP(currentUser.email)
-    toast('Code renvoyé à '+currentUser.email,'success')
-  }catch(e){
-    toast('Erreur : '+e.message,'error')
-    btn.disabled = false; btn.textContent = '↺ Renvoyer le code'
+    showOverlay('overlayCreatePin')
+    setupCreatePin()
   }
 }
 
@@ -1114,7 +964,6 @@ window.deleteAccount = async function(){
     localStorage.removeItem(lsKey.lastUid())
     localStorage.removeItem(lsKey.modules())
     localStorage.removeItem(lsKey.syncTs())
-    localStorage.removeItem(LS_PREFIX+'email_verified_'+uid)
     // 4. Déconnecte la session Supabase
     await sb.auth.signOut()
     // Reset UI
