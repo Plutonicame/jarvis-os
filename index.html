@@ -317,6 +317,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
       <div class="sp-section-title">Sécurité</div>
       <button class="sp-btn secondary" onclick="changePin()">🔑 Changer mon code PIN</button>
     </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Zone de danger</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        La suppression du compte est irréversible. Toutes tes données (modules, profil, configuration) seront définitivement effacées.
+      </p>
+      <button class="sp-btn danger" onclick="deleteAccount()">🗑 Supprimer mon compte</button>
+    </div>
   </div>
 </div>
 
@@ -1075,6 +1082,54 @@ window.saveProfile = async function(){
     if(!av.querySelector('img')) av.textContent = name[0].toUpperCase()
     toast('Profil enregistré','success')
   }catch(e){ toast('Erreur : '+e.message,'error') }
+}
+
+window.deleteAccount = async function(){
+  if(!currentUser||!sb){ toast('Non connecté','error'); return }
+  closeSettings()
+  // Double confirmation
+  const ok1 = await confirm2(
+    '⚠️ Supprimer le compte',
+    'Cette action est irréversible. Tous tes modules et données seront définitivement supprimés.',
+    'Continuer'
+  )
+  if(!ok1) return
+  const ok2 = await confirm2(
+    'Dernière confirmation',
+    'Es-tu absolument certain de vouloir supprimer ton compte Jarvis OS ?',
+    '🗑 Supprimer définitivement'
+  )
+  if(!ok2) return
+
+  setSyncStatus('syncing','SUPPRESSION...')
+  try{
+    // 1. Supprime tous les modules cloud
+    await sb.from('user_modules').delete().eq('user_id', currentUser.id)
+    // 2. Supprime le profil
+    await sb.from('profiles').delete().eq('id', currentUser.id)
+    // 3. Supprime toutes les données locales liées à cet utilisateur
+    const uid = currentUser.id
+    localStorage.removeItem(lsKey.pin(uid))
+    localStorage.removeItem(lsKey.email(uid))
+    localStorage.removeItem(lsKey.lastUid())
+    localStorage.removeItem(lsKey.modules())
+    localStorage.removeItem(lsKey.syncTs())
+    localStorage.removeItem(LS_PREFIX+'email_verified_'+uid)
+    // 4. Déconnecte la session Supabase
+    await sb.auth.signOut()
+    // Reset UI
+    currentUser = null; currentProfile = null; MODULES = []
+    document.getElementById('user-name').textContent = 'CONNEXION'
+    document.getElementById('user-avatar').innerHTML = '?'
+    renderModules()
+    setSyncStatus('offline','HORS LIGNE')
+    showOverlay('overlayGoogle')
+    toast('Compte supprimé. À bientôt.','success', 5000)
+  }catch(e){
+    console.error('[Jarvis] deleteAccount error:', e)
+    setSyncStatus('error','ERREUR')
+    toast('Erreur lors de la suppression : '+e.message,'error',6000)
+  }
 }
 
 // ════════════════════════════════════════════
