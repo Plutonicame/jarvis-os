@@ -317,10 +317,25 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 <!-- ══════════════════════════════════════
      AUTH — ÉCRAN GOOGLE
 ══════════════════════════════════════ -->
-<div id="overlayGoogle" class="auth-overlay active">
+<div id="overlayEmailEntry" class="auth-overlay active">
   <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
   <div class="ao-title">JARVIS OS</div>
-  <div class="ao-sub">PLATEFORME MODULAIRE</div>
+  <div class="ao-sub">Entre ton adresse email</div>
+  <div class="pin-err" id="email-err"></div>
+  <input type="email" id="email-input" placeholder="email@exemple.com"
+    style="width:100%;max-width:280px;padding:13px 16px;background:rgba(0,20,60,.7);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;text-align:center"
+    onkeydown="if(event.key==='Enter')checkEmailAccount()"/>
+  <button class="google-btn" id="emailContinueBtn" onclick="checkEmailAccount()" style="background:rgba(0,100,220,.35);border-color:rgba(0,170,255,.3)">
+    Continuer
+  </button>
+</div>
+
+<!-- ÉCRAN VÉRIFICATION GOOGLE (première inscription uniquement) -->
+<div id="overlayGoogle" class="auth-overlay">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Aucun compte trouvé pour cet email.<br/>Connecte-toi avec Google pour créer ton compte<br/>et prouver que cette adresse t'appartient.</div>
+  <div class="ao-email" id="create-email-display"></div>
   <div id="google-err" class="pin-err"></div>
   <button class="google-btn" id="googleBtn" onclick="signInWithGoogle()">
     <svg class="google-icon" viewBox="0 0 24 24">
@@ -331,6 +346,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
     </svg>
     Continuer avec Google
   </button>
+  <button class="pin-link" onclick="showOverlay('overlayEmailEntry')">← Retour</button>
 </div>
 
 <!-- ÉCRAN CHARGEMENT OAUTH -->
@@ -440,6 +456,8 @@ let hudAnimId       = null
 let pinAttempts     = 0
 let pinFirstEntry   = ''
 let previousOverlay = null
+let pendingEmail    = null
+let pendingUserId   = null
 
 window.JARVIS = { audioAmplitude: 0 }
 
@@ -600,11 +618,8 @@ async function hashPin(pin){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
 }
 
-// LocalStorage keys
+// LocalStorage keys — uniquement pour le cache modules (le PIN est en cloud)
 const lsKey = {
-  pin:     uid => LS_PREFIX+'pin_'+uid,
-  email:   uid => LS_PREFIX+'email_'+uid,
-  lastUid: ()  => LS_PREFIX+'last_uid',
   modules: ()  => LS_PREFIX+'modules',
   syncTs:  ()  => LS_PREFIX+'sync_ts',
 }
@@ -656,31 +671,8 @@ function buildPad(padId, dotsId, onComplete, errId){
   return { reset }
 }
 
-function setupEnterPin(){
-  pinAttempts = 0
-  document.getElementById('pin-email').textContent = currentUser?.email||''
-  buildPad('enter-pad','enter-dots', async(val, reset)=>{
-    const stored = localStorage.getItem(lsKey.pin(currentUser.id))
-    const hashed = await hashPin(val)
-    if(hashed === stored){
-      pinAttempts = 0
-      await afterPinValidated()
-    } else {
-      pinAttempts++
-      const err = document.getElementById('enter-err')
-      if(pinAttempts >= PIN_MAX_ATTEMPTS){
-        err.textContent = 'Trop de tentatives. Déconnexion...'
-        err.classList.add('visible')
-        setTimeout(()=>doSignOut(), 2000)
-      } else {
-        const left = PIN_MAX_ATTEMPTS - pinAttempts
-        err.textContent = `PIN incorrect — ${left} essai${left>1?'s':''} restant${left>1?'s':''}`
-        err.classList.add('visible')
-        reset(true)
-      }
-    }
-  }, 'enter-err')
-}
+// ── PIN vérifié et stocké dans Supabase (table profiles.pin_hash) ──
+// Le PIN est donc lié au compte email, pas à l'appareil.
 
 function setupCreatePin(){
   pinFirstEntry = ''
@@ -694,12 +686,27 @@ function setupCreatePin(){
 function setupConfirmPin(){
   buildPad('confirm-pad','confirm-dots', async(val, reset)=>{
     if(val === pinFirstEntry){
-      const hashed = await hashPin(val)
-      localStorage.setItem(lsKey.pin(currentUser.id), hashed)
-      localStorage.setItem(lsKey.email(currentUser.id), currentUser.email||'')
-      localStorage.setItem(lsKey.lastUid(), currentUser.id)
-      pinFirstEntry = ''
-      await afterPinValidated()
+      try{
+        const pinAsPassword = 'Jrv!' + val + 'Os2024'
+        // currentUser vient de la session Google fraîchement validée
+        // On définit ce PIN comme mot de passe Supabase pour ce compte
+        const { error } = await sb.auth.updateUser({ password: pinAsPassword })
+        if(error) throw error
+        // Marque le profil comme ayant un PIN configuré
+        await sb.from('profiles').upsert({
+          id: currentUser.id,
+          email: currentUser.email.toLowerCase(),
+          pin_hash: 'configured',
+          updated_at: new Date().toISOString()
+        })
+        pinFirstEntry = ''
+        await afterPinValidated()
+      }catch(e){
+        const err = document.getElementById('confirm-err')
+        err.textContent = 'Erreur de sauvegarde : '+e.message
+        err.classList.add('visible')
+        reset(true)
+      }
     } else {
       const err = document.getElementById('confirm-err')
       err.textContent = 'PIN non identique. Recommence.'
@@ -716,16 +723,19 @@ function setupConfirmPin(){
 // ════════════════════════════════════════════
 window.changePin = function(){
   closeDropdown()
-  previousOverlay = null
   showOverlay('overlayOldPin')
   buildPad('oldpin-pad','oldpin-dots', async(val, reset)=>{
-    const stored = localStorage.getItem(lsKey.pin(currentUser.id))
-    const hashed = await hashPin(val)
-    if(hashed === stored){
+    const err = document.getElementById('oldpin-err')
+    try{
+      const pinAsPassword = 'Jrv!' + val + 'Os2024'
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: currentUser.email,
+        password: pinAsPassword
+      })
+      if(error) throw error
       showOverlay('overlayCreatePin')
       setupCreatePin()
-    } else {
-      const err = document.getElementById('oldpin-err')
+    }catch(e){
       err.textContent = 'PIN incorrect.'
       err.classList.add('visible')
       reset(true)
@@ -778,18 +788,15 @@ async function signInWithGoogle(){
 
 window.doSignOut = async function(){
   closeDropdown()
-  const uid = currentUser?.id
   currentUser = null; currentProfile = null; MODULES = []
-  if(uid){
-    localStorage.removeItem(lsKey.lastUid())
-  }
   if(sb){ try{ await sb.auth.signOut() }catch(e){} }
   document.getElementById('user-name').textContent = 'CONNEXION'
   document.getElementById('user-avatar').innerHTML = '?'
   setSyncStatus('offline','HORS LIGNE')
   renderModules()
-  showOverlay('overlayGoogle')
-  // Reset bouton Google
+  document.getElementById('email-input').value=''
+  showOverlay('overlayEmailEntry')
+  setTimeout(()=>document.getElementById('email-input')?.focus(),200)
   document.getElementById('googleBtn').disabled = false
   document.getElementById('googleBtn').innerHTML = `<svg class="google-icon" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continuer avec Google`
 }
@@ -810,13 +817,12 @@ async function initSupabase(){
       auth: { autoRefreshToken:true, persistSession:true, detectSessionInUrl:false }
     })
 
-    // ── Traitement retour OAuth ──
+    // ── Retour OAuth Google (uniquement lors d'une création de compte) ──
     const rawHash = window.location.hash
     const isOAuth = rawHash.includes('access_token')
 
     if(isOAuth){
       showOverlay('overlayLoading')
-      // Nettoie l'URL immédiatement
       history.replaceState(null, '', window.location.pathname)
       const params = new URLSearchParams(rawHash.replace('#',''))
       const accessToken  = params.get('access_token')
@@ -824,66 +830,112 @@ async function initSupabase(){
       if(accessToken && refreshToken){
         const { data, error } = await sb.auth.setSession({ access_token:accessToken, refresh_token:refreshToken })
         if(!error && data?.session?.user){
-          await applySession(data.session.user)
+          // Identité confirmée par Google → on passe à la création du PIN
+          currentUser = data.session.user
+          loadModulesLocal(); renderModules()
+          showOverlay('overlayCreatePin')
+          setupCreatePin()
           return
         }
       }
-      // Échec parsing hash — retour Google
-      showOverlay('overlayGoogle')
+      toast('Échec de la vérification Google','error')
+      showOverlay('overlayEmailEntry')
       return
     }
 
-    // ── Session existante ──
-    const { data:{ session } } = await sb.auth.getSession()
-    if(session?.user){
-      await applySession(session.user)
-      return
-    }
-
-    // ── Refresh si last_uid connu ──
-    const lastUid = localStorage.getItem(lsKey.lastUid())
-    if(lastUid && localStorage.getItem(lsKey.pin(lastUid))){
-      try{
-        const { data } = await sb.auth.refreshSession()
-        if(data?.session?.user){
-          await applySession(data.session.user)
-          return
-        }
-      }catch(e){}
-      // Session expirée mais PIN stocké — demande PIN sans recréer
-      currentUser = { id:lastUid, email:localStorage.getItem(lsKey.email(lastUid))||'' }
-      loadModulesLocal(); renderModules()
-      showOverlay('overlayEnterPin')
-      setupEnterPin()
-      return
-    }
-
-    // ── Aucune session ──
+    // ── Démarrage normal : toujours demander l'email ──
     loadModulesLocal(); renderModules()
-    showOverlay('overlayGoogle')
+    showOverlay('overlayEmailEntry')
+    setTimeout(()=>document.getElementById('email-input')?.focus(), 200)
 
   }catch(e){
     console.error('[Jarvis] Supabase init error:', e)
     setSyncStatus('error','ERREUR INIT')
     loadModulesLocal(); renderModules()
-    showOverlay('overlayGoogle')
+    showOverlay('overlayEmailEntry')
     toast('Erreur de connexion Supabase','error')
   }
 }
 
-async function applySession(user){
-  currentUser = user
-  localStorage.setItem(lsKey.lastUid(), user.id)
-  localStorage.setItem(lsKey.email(user.id), user.email||'')
-  loadModulesLocal(); renderModules()
-  const hasPIN = localStorage.getItem(lsKey.pin(user.id))
-  if(hasPIN){
-    showOverlay('overlayEnterPin')
-    setupEnterPin()
-  } else {
-    showOverlay('overlayCreatePin')
-    setupCreatePin()
+// ── Vérifie si un compte existe pour cet email ──
+window.checkEmailAccount = async function(){
+  const emailInput = document.getElementById('email-input')
+  const email = emailInput.value.trim().toLowerCase()
+  const err = document.getElementById('email-err')
+  err.textContent=''; err.classList.remove('visible')
+
+  if(!email || !email.includes('@')){
+    err.textContent = 'Entre une adresse email valide.'
+    err.classList.add('visible')
+    return
   }
+
+  const btn = document.getElementById('emailContinueBtn')
+  btn.disabled = true; btn.textContent = 'Vérification...'
+
+  try{
+    const { data, error } = await sb.rpc('check_email_has_pin', { p_email: email })
+    btn.disabled = false; btn.textContent = 'Continuer'
+
+    pendingEmail = email
+
+    if(data === true){
+      // Compte existant avec PIN → demande le PIN
+      document.getElementById('pin-email').textContent = email
+      showOverlay('overlayEnterPin')
+      setupEnterPinByEmail()
+    } else {
+      // Aucun compte ou pas de PIN → vérification identité Google requise
+      document.getElementById('create-email-display').textContent = email
+      showOverlay('overlayGoogle')
+    }
+  }catch(e){
+    btn.disabled = false; btn.textContent = 'Continuer'
+    err.textContent = 'Erreur réseau. Réessaie.'
+    err.classList.add('visible')
+  }
+}
+
+// ── Saisie PIN pour un compte existant (sans session active) ──
+function setupEnterPinByEmail(){
+  pinAttempts = 0
+  buildPad('enter-pad','enter-dots', async(val, reset)=>{
+    const err = document.getElementById('enter-err')
+    try{
+      // Le PIN EST le mot de passe Supabase (6 chiffres = mot de passe minimum requis étendu)
+      const pinAsPassword = 'Jrv!' + val + 'Os2024'  // dérivation fixe pour respecter la politique mdp Supabase
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: pendingEmail,
+        password: pinAsPassword
+      })
+      if(error) throw error
+      if(data?.session?.user){
+        pinAttempts = 0
+        currentUser = data.session.user
+        await afterPinValidated()
+      }
+    }catch(e){
+      pinAttempts++
+      if(pinAttempts >= PIN_MAX_ATTEMPTS){
+        err.textContent = 'Trop de tentatives. Retour à l\'accueil...'
+        err.classList.add('visible')
+        setTimeout(()=>{ showOverlay('overlayEmailEntry'); document.getElementById('email-input').value='' }, 2000)
+      } else {
+        const left = PIN_MAX_ATTEMPTS - pinAttempts
+        err.textContent = `PIN incorrect — ${left} essai${left>1?'s':''} restant${left>1?'s':''}`
+        err.classList.add('visible')
+        reset(true)
+      }
+    }
+  }, 'enter-err')
+}
+
+async function applySession(user){
+  // Cette fonction n'est plus appelée que dans des cas résiduels (compat)
+  currentUser = user
+  loadModulesLocal(); renderModules()
+  showOverlay('overlayCreatePin')
+  setupCreatePin()
 }
 
 // ════════════════════════════════════════════
@@ -937,7 +989,6 @@ window.saveProfile = async function(){
 window.deleteAccount = async function(){
   if(!currentUser||!sb){ toast('Non connecté','error'); return }
   closeSettings()
-  // Double confirmation
   const ok1 = await confirm2(
     '⚠️ Supprimer le compte',
     'Cette action est irréversible. Tous tes modules et données seront définitivement supprimés.',
@@ -953,26 +1004,18 @@ window.deleteAccount = async function(){
 
   setSyncStatus('syncing','SUPPRESSION...')
   try{
-    // 1. Supprime tous les modules cloud
     await sb.from('user_modules').delete().eq('user_id', currentUser.id)
-    // 2. Supprime le profil
     await sb.from('profiles').delete().eq('id', currentUser.id)
-    // 3. Supprime toutes les données locales liées à cet utilisateur
-    const uid = currentUser.id
-    localStorage.removeItem(lsKey.pin(uid))
-    localStorage.removeItem(lsKey.email(uid))
-    localStorage.removeItem(lsKey.lastUid())
     localStorage.removeItem(lsKey.modules())
     localStorage.removeItem(lsKey.syncTs())
-    // 4. Déconnecte la session Supabase
     await sb.auth.signOut()
-    // Reset UI
     currentUser = null; currentProfile = null; MODULES = []
     document.getElementById('user-name').textContent = 'CONNEXION'
     document.getElementById('user-avatar').innerHTML = '?'
     renderModules()
     setSyncStatus('offline','HORS LIGNE')
-    showOverlay('overlayGoogle')
+    document.getElementById('email-input').value=''
+    showOverlay('overlayEmailEntry')
     toast('Compte supprimé. À bientôt.','success', 5000)
   }catch(e){
     console.error('[Jarvis] deleteAccount error:', e)
