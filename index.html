@@ -272,7 +272,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
     <button id="mf-close" onclick="closeModule()">← RETOUR</button>
     <span id="mf-title">MODULE</span>
   </div>
-  <iframe id="module-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
+  <iframe id="module-iframe" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"></iframe>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -457,7 +457,6 @@ let pinAttempts     = 0
 let pinFirstEntry   = ''
 let previousOverlay = null
 let pendingEmail    = null
-let pendingUserId   = null
 
 window.JARVIS = { audioAmplitude: 0 }
 
@@ -502,15 +501,37 @@ function drawHUD(){
   if(document.hidden) return
   t += 0.016
   ctx.clearRect(0,0,W,H)
-  const spd = {online:.18,listening:.9,working:1.5,speaking:.65}[jarvisState]||.18
-  const rot  = t*spd*.35
-  const breathOn  = Math.sin(t*(Math.PI*2/4))
-  const breathWrk = Math.sin(t*(Math.PI*2/2.4))
+
+  // ── Vitesses de rotation des anneaux ──
+  const spd = {online:.18, listening:.9, working:.55, speaking:.65}[jarvisState]||.18
+  const rot  = t * spd * .35
+
+  // ── BPM → fréquence radiale globale (battement de coeur) ──
+  // EN LIGNE   : 10 BPM  → période 6s
+  // TRAVAILLE  : 50 BPM  → période 1.2s
+  // (PARLE et ÉCOUTE gardent leur logique propre)
+  const bpmOnline  = 10
+  const bpmWorking = 50
+  const freqOnline  = (bpmOnline  / 60) * Math.PI * 2
+  const freqWorking = (bpmWorking / 60) * Math.PI * 2
+
+  // Battement de cœur global (modulation du rayon total)
+  // Forme : sin positif uniquement → diastole/systole
+  const heartOnline  = Math.sin(t * freqOnline)   // -1 à 1
+  const heartWorking = Math.sin(t * freqWorking)
+
+  // Fond
   const bgG = ctx.createRadialGradient(cx,cy,0,cx,cy,W*.5)
-  bgG.addColorStop(0,'rgba(0,45,110,.45)');bgG.addColorStop(.65,'rgba(0,12,45,.2)');bgG.addColorStop(1,'rgba(0,4,16,0)')
+  bgG.addColorStop(0,'rgba(0,45,110,.45)')
+  bgG.addColorStop(.65,'rgba(0,12,45,.2)')
+  bgG.addColorStop(1,'rgba(0,4,16,0)')
   ctx.beginPath();ctx.arc(cx,cy,W*.5,0,Math.PI*2);ctx.fillStyle=bgG;ctx.fill()
+
   const GAP=W*.038, R4=W*.310, R3=R4+GAP, R2=R3+GAP*.5, R1=R2+GAP*1.2
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);ctx.globalAlpha=.45;ctx.strokeStyle='#44ccff';ctx.lineWidth=1
+
+  // Anneau R1 pointillé
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot)
+  ctx.globalAlpha=.45;ctx.strokeStyle='#44ccff';ctx.lineWidth=1
   ctx.setLineDash([3,4]);ctx.beginPath();ctx.arc(0,0,R1,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])
   for(let i=0;i<24;i++){
     const a=(i/24)*Math.PI*2,maj=i%6===0,mid=i%2===0,len=maj?11:mid?7:4
@@ -518,36 +539,95 @@ function drawHUD(){
     ctx.beginPath();ctx.moveTo(Math.cos(a)*R1,Math.sin(a)*R1);ctx.lineTo(Math.cos(a)*(R1+len),Math.sin(a)*(R1+len));ctx.stroke()
   }
   ctx.restore()
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(-rot*.5);ctx.globalAlpha=.22;ctx.strokeStyle='#2299dd';ctx.lineWidth=.7
+
+  // Anneau R2
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(-rot*.5)
+  ctx.globalAlpha=.22;ctx.strokeStyle='#2299dd';ctx.lineWidth=.7
   ctx.setLineDash([2,7]);ctx.beginPath();ctx.arc(0,0,R2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore()
+
+  // Anneau R3 arcs
   const arcSpan=Math.PI*(110/180)
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot*1.1);ctx.strokeStyle='#44bbee';ctx.lineWidth=1.4;ctx.globalAlpha=.58
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot*1.1)
+  ctx.strokeStyle='#44bbee';ctx.lineWidth=1.4;ctx.globalAlpha=.58
   for(let i=0;i<3;i++){const c=(i/3)*Math.PI*2;ctx.beginPath();ctx.arc(0,0,R3,c-arcSpan/2,c+arcSpan/2);ctx.stroke()}
   ctx.restore()
+
+  // Anneau R4
   ctx.save();ctx.globalAlpha=.28;ctx.strokeStyle='#2299cc';ctx.lineWidth=.8
   ctx.beginPath();ctx.arc(cx,cy,R4,0,Math.PI*2);ctx.stroke();ctx.restore()
+
+  // ── PARTICULES ──
   particles.forEach(p=>{
-    let tx,ty
-    if(jarvisState==='online'){const e=1+breathOn*.18;tx=cx+Math.cos(p.ang)*p.dist*e;ty=cy+Math.sin(p.ang)*p.dist*e}
-    else if(jarvisState==='listening'){const na=p.listenAng+t*.55;tx=cx+Math.cos(na)*p.listenR;ty=cy+Math.sin(na)*p.listenR}
-    else if(jarvisState==='working'){const sc=1+breathWrk*.16;tx=cx+Math.cos(p.ang)*p.dist*sc;ty=cy+Math.sin(p.ang)*p.dist*sc}
-    else{const amp=window.JARVIS.audioAmplitude||0,wave=Math.sin(t*4+p.ph*3)*(.07+amp*.35);tx=cx+Math.cos(p.ang+t*.12)*p.dist*(1+wave);ty=cy+Math.sin(p.ang+t*.12)*p.dist*(1+wave)}
-    const rdx=tx-cx,rdy=ty-cy,rd=Math.hypot(rdx,rdy)
+    let tx, ty
+
+    if(jarvisState==='listening'){
+      // Tourne sur orbite comme PARLE
+      const na = p.listenAng + t * .55
+      tx = cx + Math.cos(na) * p.listenR
+      ty = cy + Math.sin(na) * p.listenR
+
+    } else if(jarvisState==='speaking'){
+      // Rotation lente + oscillation radiale individuelle (phase propre)
+      const amp   = window.JARVIS.audioAmplitude || 0
+      const wave  = Math.sin(t * 2.5 + p.ph * 3) * (.07 + amp * .35)
+      const orbit = p.ang + t * .12
+      tx = cx + Math.cos(orbit) * p.dist * (1 + wave)
+      ty = cy + Math.sin(orbit) * p.dist * (1 + wave)
+
+    } else if(jarvisState==='online'){
+      // Oscillation radiale individuelle (phase propre) + battement global 10 BPM
+      // Chaque point oscille indépendamment sur sa propre phase
+      const indivOsc  = Math.sin(t * 1.8 + p.ph * Math.PI * 2) * .06  // oscillation individuelle
+      const heartPulse = heartOnline * .10                               // battement global 10 BPM
+      const scale = 1 + indivOsc + heartPulse
+      tx = cx + Math.cos(p.ang) * p.dist * scale
+      ty = cy + Math.sin(p.ang) * p.dist * scale
+
+    } else { // working
+      // Même principe qu'EN LIGNE mais 50 BPM pour le battement
+      const indivOsc   = Math.sin(t * 2.2 + p.ph * Math.PI * 2) * .07
+      const heartPulse = heartWorking * .13
+      const scale = 1 + indivOsc + heartPulse
+      tx = cx + Math.cos(p.ang) * p.dist * scale
+      ty = cy + Math.sin(p.ang) * p.dist * scale
+    }
+
+    // Contient dans R4
+    const rdx=tx-cx, rdy=ty-cy, rd=Math.hypot(rdx,rdy)
     if(rd>R4){tx=cx+rdx*(R4/rd);ty=cy+rdy*(R4/rd)}
-    p.x+=(tx-p.x)*.07;p.y+=(ty-p.y)*.07
-    const d=Math.hypot(p.x-cx,p.y-cy),ctr=Math.max(0,1-d/(R4*.4))
-    const al=p.al*(.85+Math.sin(t*.7+p.ph)*.15)+ctr*.12
-    if(al<.05)return
-    let haloR,haloAl
-    if(jarvisState==='working'){const hS=breathWrk*.5+.5;haloR=p.sz*(2+hS*4.5);haloAl=al*(.2+hS*.6)}
-    else{haloR=p.sz*2;haloAl=al*.22}
-    const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR)
-    gr.addColorStop(0,`rgba(0,160,255,${haloAl})`);gr.addColorStop(1,'rgba(0,100,255,0)')
+
+    // Lissage
+    p.x += (tx-p.x) * .07
+    p.y += (ty-p.y) * .07
+
+    const d   = Math.hypot(p.x-cx, p.y-cy)
+    const ctr = Math.max(0, 1-d/(R4*.4))
+    const al  = p.al * (.85 + Math.sin(t*.7+p.ph)*.15) + ctr*.12
+    if(al<.05) return
+
+    // Halo working plus intense
+    let haloR, haloAl
+    if(jarvisState==='working'){
+      const hS = heartWorking*.5+.5
+      haloR  = p.sz * (2 + hS*4.5)
+      haloAl = al * (.2 + hS*.6)
+    } else {
+      haloR  = p.sz * 2
+      haloAl = al * .22
+    }
+
+    const gr = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR)
+    gr.addColorStop(0, `rgba(0,160,255,${haloAl})`)
+    gr.addColorStop(1, 'rgba(0,100,255,0)')
     ctx.beginPath();ctx.arc(p.x,p.y,haloR,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill()
-    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fillStyle=`rgba(245,253,255,${Math.min(1,al*3)})`;ctx.fill()
+    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2)
+    ctx.fillStyle=`rgba(245,253,255,${Math.min(1,al*3)})`;ctx.fill()
   })
-  const hg=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025)
-  hg.addColorStop(0,'rgba(60,160,255,.15)');hg.addColorStop(1,'rgba(0,80,180,0)')
+
+  // Centre
+  const hg = ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025)
+  hg.addColorStop(0,'rgba(60,160,255,.15)')
+  hg.addColorStop(1,'rgba(0,80,180,0)')
   ctx.beginPath();ctx.arc(cx,cy,W*.025,0,Math.PI*2);ctx.fillStyle=hg;ctx.fill()
 }
 
@@ -612,10 +692,26 @@ function showOverlay(id){
 // ════════════════════════════════════════════
 // SÉCURITÉ — HASH PIN SHA-256
 // ════════════════════════════════════════════
-async function hashPin(pin){
-  const data = new TextEncoder().encode(pin + 'jarvis_secure_2024_' + (currentUser?.id||''))
-  const buf  = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
+async function hashPin(pin, userId){
+  // PBKDF2 avec 100k itérations — résistant au bruteforce
+  const uid = userId || currentUser?.id || ''
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(pin),
+    'PBKDF2', false, ['deriveBits']
+  )
+  const bits = await crypto.subtle.deriveBits({
+    name: 'PBKDF2',
+    salt: new TextEncoder().encode('jarvis_salt_' + uid),
+    iterations: 100000,
+    hash: 'SHA-256'
+  }, keyMaterial, 256)
+  return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('')
+}
+
+// Dérive le mot de passe Supabase depuis le PIN (non-réversible)
+async function pinToPassword(pin, userId){
+  const hash = await hashPin(pin, userId)
+  return 'Jrv_' + hash.slice(0,32) + '_Os'  // 38 chars, respecte politique Supabase
 }
 
 // LocalStorage keys — uniquement pour le cache modules (le PIN est en cloud)
@@ -687,7 +783,7 @@ function setupConfirmPin(){
   buildPad('confirm-pad','confirm-dots', async(val, reset)=>{
     if(val === pinFirstEntry){
       try{
-        const pinAsPassword = 'Jrv!' + val + 'Os2024'
+        const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
         // currentUser vient de la session Google fraîchement validée
         // On définit ce PIN comme mot de passe Supabase pour ce compte
         const { error } = await sb.auth.updateUser({ password: pinAsPassword })
@@ -727,7 +823,7 @@ window.changePin = function(){
   buildPad('oldpin-pad','oldpin-dots', async(val, reset)=>{
     const err = document.getElementById('oldpin-err')
     try{
-      const pinAsPassword = 'Jrv!' + val + 'Os2024'
+      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
       const { data, error } = await sb.auth.signInWithPassword({
         email: currentUser.email,
         password: pinAsPassword
@@ -756,6 +852,7 @@ async function afterPinValidated(){
   if(sb && currentUser){
     await loadProfile(currentUser)
     await loadModulesFromCloud(currentUser.id)
+    setupRealtime(currentUser.id)
   }
 }
 
@@ -789,6 +886,7 @@ async function signInWithGoogle(){
 window.doSignOut = async function(){
   closeDropdown()
   currentUser = null; currentProfile = null; MODULES = []
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel=null }
   if(sb){ try{ await sb.auth.signOut() }catch(e){} }
   document.getElementById('user-name').textContent = 'CONNEXION'
   document.getElementById('user-avatar').innerHTML = '?'
@@ -903,7 +1001,7 @@ function setupEnterPinByEmail(){
     const err = document.getElementById('enter-err')
     try{
       // Le PIN EST le mot de passe Supabase (6 chiffres = mot de passe minimum requis étendu)
-      const pinAsPassword = 'Jrv!' + val + 'Os2024'  // dérivation fixe pour respecter la politique mdp Supabase
+      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)  // dérivation fixe pour respecter la politique mdp Supabase
       const { data, error } = await sb.auth.signInWithPassword({
         email: pendingEmail,
         password: pinAsPassword
@@ -936,6 +1034,51 @@ async function applySession(user){
   loadModulesLocal(); renderModules()
   showOverlay('overlayCreatePin')
   setupCreatePin()
+}
+
+// ════════════════════════════════════════════
+// REALTIME — SYNC INSTANTANÉE MULTI-APPAREILS
+// ════════════════════════════════════════════
+let realtimeChannel = null
+
+function setupRealtime(userId){
+  // Ferme l'ancien canal si existant
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel=null }
+
+  realtimeChannel = sb.channel('jarvis_user_'+userId)
+
+  // Écoute les changements de profil (prénom, avatar...)
+  realtimeChannel.on('postgres_changes',{
+    event:'UPDATE', schema:'public', table:'profiles', filter:'id=eq.'+userId
+  }, payload=>{
+    if(!payload.new) return
+    const name = payload.new.display_name
+    if(name){
+      document.getElementById('user-name').textContent = name.toUpperCase().slice(0,13)
+      document.getElementById('dd-name').textContent   = name
+      document.getElementById('sp-display-name').value = name
+      const av = document.getElementById('user-avatar')
+      if(!av.querySelector('img')) av.textContent = name[0].toUpperCase()
+    }
+  })
+
+  // Écoute les changements de modules
+  realtimeChannel.on('postgres_changes',{
+    event:'*', schema:'public', table:'user_modules', filter:'user_id=eq.'+userId
+  }, ()=>{
+    // Recharge depuis le cloud sans déclencher une nouvelle sync
+    loadModulesFromCloud(userId)
+  })
+
+  realtimeChannel
+    .subscribe((status, err)=>{
+      if(status === 'SUBSCRIBED'){
+        console.log('[Jarvis] Realtime connecté')
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT'){
+        console.warn('[Jarvis] Realtime déconnecté, reconnexion dans 5s...', err)
+        setTimeout(()=>{ if(currentUser) setupRealtime(currentUser.id) }, 5000)
+      }
+    })
 }
 
 // ════════════════════════════════════════════
@@ -1339,6 +1482,11 @@ document.addEventListener('visibilitychange', ()=>{
 // ════════════════════════════════════════════
 window.addEventListener('message', e=>{
   if(!e.data||!e.data.type) return
+  // Sécurité: vérifie que le message vient de l'iframe du module actif
+  // On accepte: même origine, blob: URLs, et data: URLs
+  const allowedOrigins = [window.location.origin, 'null']
+  const origin = e.origin || 'null'
+  if(!allowedOrigins.includes(origin) && !origin.startsWith('blob:')) return
   const d = e.data
   switch(d.type){
     case 'JARVIS_SET_STATE':
@@ -1354,7 +1502,7 @@ window.addEventListener('message', e=>{
         displayName: currentProfile?.display_name||null,
         email:       currentUser?.email||null,
         avatarUrl:   currentProfile?.avatar_url||null
-      },'*')
+      }, window.location.origin)
       break
     case 'JARVIS_TOAST':
       toast(d.message||'', d.style||'info', d.duration||3200)
