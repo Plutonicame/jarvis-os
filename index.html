@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#000d22"/>
+<link rel="manifest" href="manifest.json"/>
+<title>Jarvis OS</title>
+<style>
+/* ════════════════════════════════════════
+   RESET & VARIABLES
+════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000d22;--blue:#00aaff;--blue2:#33ccff;
+  --border:rgba(0,170,255,0.15);--text:#c8e8ff;--muted:rgba(0,170,255,0.4);
+  --mono:'Courier New',monospace;--sans:'Inter',system-ui,sans-serif;
+  --danger:#ff4444;--success:#00ff88;--warn:#ffaa00;
+}
+html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(0,140,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,140,255,.05) 1px,transparent 1px);background-size:48px 48px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+@keyframes pinSuccess{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* ════════════════════════════════════════
+   TOPBAR
+════════════════════════════════════════ */
+#topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(0,10,28,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);z-index:100}
+.tb-logo img{height:32px;width:32px;border-radius:7px;object-fit:cover;display:block}
+#tb-right{display:flex;align-items:center;gap:12px}
+#sync-indicator{display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);letter-spacing:1px;color:var(--muted)}
+#sync-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background .3s,box-shadow .3s}
+#user-btn{display:flex;align-items:center;gap:7px;cursor:pointer;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:var(--mono);letter-spacing:1px;transition:all .2s;user-select:none}
+#user-btn:hover{border-color:var(--blue);color:var(--blue2);background:rgba(0,170,255,.07)}
+.user-avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--blue),#0055aa);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+
+/* ════════════════════════════════════════
+   DROPDOWN USER
+════════════════════════════════════════ */
+#user-dropdown{display:none;position:fixed;top:54px;right:14px;background:rgba(0,12,36,.98);border:1px solid var(--border);border-radius:10px;min-width:210px;z-index:300;box-shadow:0 8px 32px rgba(0,0,0,.75);overflow:hidden;animation:fadeIn .15s ease}
+#user-dropdown.open{display:block}
+.ud-header{padding:14px 16px;border-bottom:1px solid var(--border)}
+.ud-name{font-size:12px;font-weight:600;color:var(--blue2)}
+.ud-email{font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.ud-item{padding:10px 16px;font-size:11px;color:var(--text);cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:8px;user-select:none}
+.ud-item:hover{background:rgba(0,170,255,.1);color:var(--blue2)}
+.ud-item.danger:hover{background:rgba(255,60,60,.08);color:var(--danger)}
+.ud-sep{height:1px;background:var(--border);margin:4px 0}
+
+/* ════════════════════════════════════════
+   LAYOUT PRINCIPAL
+════════════════════════════════════════ */
+#app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;align-items:center;padding-top:48px;gap:8px}
+#hud-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;min-height:0;padding:8px 0 0}
+#jarvis-center{position:relative}
+#jarvis-center canvas{display:block}
+#state-label{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);pointer-events:none;white-space:nowrap}
+
+/* ════════════════════════════════════════
+   BOUTONS ÉTAT
+════════════════════════════════════════ */
+#state-btns{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;flex-shrink:0;padding-bottom:4px}
+.state-btn{padding:4px 13px;border-radius:20px;font-size:10px;font-family:var(--mono);letter-spacing:1px;cursor:pointer;transition:all .2s;background:transparent;border:1px solid rgba(0,170,255,.18);color:var(--muted)}
+.state-btn:hover,.state-btn.active{background:rgba(0,170,255,.1);border-color:var(--blue);color:var(--blue2);box-shadow:0 0 8px rgba(0,170,255,.12)}
+
+/* ════════════════════════════════════════
+   MODULES
+════════════════════════════════════════ */
+#modules-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;flex-shrink:0;padding-bottom:12px;padding:0 12px 12px}
+.module-slot{width:150px;height:82px;border-radius:14px;border:1px solid var(--border);background:rgba(0,18,48,.5);backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .22s;position:relative;overflow:visible;flex-shrink:0}
+.module-slot.loaded:hover{border-color:rgba(0,170,255,.45);box-shadow:0 0 16px rgba(0,170,255,.1);transform:translateY(-2px);cursor:pointer}
+.module-slot.inactive{opacity:.4;filter:grayscale(.3)}
+.mod-icon{font-size:20px;line-height:1;cursor:pointer}
+.mod-name{font-size:11px;font-weight:600;color:var(--text);letter-spacing:.3px;cursor:pointer;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.mod-sub{font-size:9px;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mod-status-badge{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:7px;font-family:var(--mono);letter-spacing:1px;padding:1px 6px;border-radius:6px;white-space:nowrap}
+.mod-status-badge.active{background:rgba(0,255,136,.08);color:var(--success);border:1px solid rgba(0,255,136,.2)}
+.mod-status-badge.inactive{background:rgba(255,100,0,.08);color:#ff8844;border:1px solid rgba(255,100,0,.2)}
+.mod-menu-btn{position:absolute;top:6px;right:7px;width:20px;height:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;cursor:pointer;opacity:.3;transition:opacity .2s;z-index:10}
+.mod-menu-btn:hover{opacity:1}
+.mod-menu-btn span{width:3px;height:3px;border-radius:50%;background:var(--blue2);display:block}
+.mod-menu{display:none;position:absolute;top:26px;right:4px;background:rgba(0,15,40,.98);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:200;min-width:175px;box-shadow:0 4px 24px rgba(0,0,0,.7)}
+.mod-menu.open{display:block;animation:fadeIn .1s ease}
+.mod-menu-item{padding:9px 14px;font-size:11px;color:var(--text);cursor:pointer;transition:background .15s;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.mod-menu-item:hover{background:rgba(0,170,255,.12);color:var(--blue2)}
+.mod-menu-item.danger:hover{background:rgba(255,60,60,.1);color:#ff7070}
+.mod-menu-sep{height:1px;background:var(--border);margin:3px 0}
+.module-slot.add-slot{cursor:pointer;border-style:dashed}
+.module-slot.add-slot:hover{border-color:rgba(0,170,255,.4);box-shadow:0 0 14px rgba(0,170,255,.08)}
+.plus-circle{width:32px;height:32px;border-radius:50%;border:1.5px dashed rgba(0,170,255,.3);display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(0,170,255,.35);transition:all .22s}
+.module-slot.add-slot:hover .plus-circle{border-color:var(--blue);color:var(--blue);box-shadow:0 0 12px rgba(0,170,255,.2);transform:scale(1.08)}
+.plus-label{font-size:9px;font-family:var(--mono);letter-spacing:1px;color:rgba(0,170,255,.25);transition:color .2s}
+.module-slot.add-slot:hover .plus-label{color:var(--blue)}
+
+/* ════════════════════════════════════════
+   MODULE IFRAME
+════════════════════════════════════════ */
+#module-frame{display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column}
+#module-frame.open{display:flex}
+#mf-bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(0,10,26,.97);border-bottom:1px solid var(--border);flex-shrink:0}
+#mf-close{padding:4px 12px;border-radius:6px;font-size:10px;font-family:var(--mono);letter-spacing:1px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s}
+#mf-close:hover{background:rgba(255,50,50,.1);border-color:rgba(255,60,60,.4);color:#ff7070}
+#mf-title{font-family:var(--mono);font-size:11px;color:var(--blue2);letter-spacing:2px}
+#module-iframe{flex:1;border:none;width:100%;background:#000}
+#file-input{display:none}
+
+/* ════════════════════════════════════════
+   PANNEAU PARAMÈTRES
+════════════════════════════════════════ */
+#settings-panel{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,5,18,.96);backdrop-filter:blur(14px);flex-direction:column}
+#settings-panel.open{display:flex}
+#sp-bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(0,10,26,.97);border-bottom:1px solid var(--border);flex-shrink:0}
+#sp-close{padding:4px 12px;border-radius:6px;font-size:10px;font-family:var(--mono);letter-spacing:1px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s}
+#sp-close:hover{background:rgba(255,50,50,.1);border-color:rgba(255,60,60,.4);color:#ff7070}
+#sp-title{font-family:var(--mono);font-size:11px;color:var(--blue2);letter-spacing:2px}
+#sp-content{flex:1;overflow-y:auto;padding:28px 24px;max-width:560px;margin:0 auto;width:100%}
+.sp-section{margin-bottom:32px}
+.sp-section-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:16px;text-transform:uppercase}
+.sp-field{margin-bottom:14px}
+.sp-field label{display:block;font-size:11px;color:var(--text);margin-bottom:6px;font-family:var(--mono);letter-spacing:.5px}
+.sp-field input{width:100%;padding:10px 13px;background:rgba(0,20,60,.7);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;transition:border-color .2s;font-family:var(--sans)}
+.sp-field input:focus{border-color:var(--blue)}
+.sp-field input:disabled{opacity:.45;cursor:not-allowed}
+.sp-btn{padding:9px 20px;border-radius:8px;font-size:11px;font-family:var(--mono);border:1px solid rgba(0,170,255,.3);color:var(--blue2);cursor:pointer;letter-spacing:1px;transition:all .2s;margin-right:8px;margin-top:4px}
+.sp-btn.primary{background:rgba(0,100,220,.3)}
+.sp-btn.primary:hover{background:rgba(0,130,255,.45)}
+.sp-btn.secondary{background:transparent}
+.sp-btn.secondary:hover{background:rgba(0,100,220,.15)}
+.sp-btn.danger{background:rgba(255,40,40,.1);border-color:rgba(255,60,60,.3);color:#ff7070}
+.sp-btn.danger:hover{background:rgba(255,40,40,.2)}
+
+/* ════════════════════════════════════════
+   CONFIRM MODAL
+════════════════════════════════════════ */
+#confirm-modal{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,5,18,.88);backdrop-filter:blur(10px);align-items:center;justify-content:center}
+#confirm-modal.visible{display:flex}
+.confirm-box{background:rgba(0,12,36,.99);border:1px solid var(--border);border-radius:14px;padding:26px 30px;max-width:340px;width:90%;box-shadow:0 12px 48px rgba(0,0,0,.8);animation:fadeIn .2s ease}
+.confirm-title{font-size:13px;font-weight:600;color:var(--blue2);margin-bottom:10px;font-family:var(--mono);letter-spacing:1px}
+.confirm-msg{font-size:12px;color:var(--text);margin-bottom:22px;line-height:1.65}
+.confirm-btns{display:flex;gap:10px;justify-content:flex-end}
+.confirm-cancel{padding:8px 16px;border-radius:7px;font-size:11px;font-family:var(--mono);background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .15s}
+.confirm-cancel:hover{border-color:var(--blue);color:var(--text)}
+.confirm-ok{padding:8px 16px;border-radius:7px;font-size:11px;font-family:var(--mono);background:rgba(255,40,40,.15);border:1px solid rgba(255,60,60,.3);color:#ff7070;cursor:pointer;transition:all .15s}
+.confirm-ok:hover{background:rgba(255,40,40,.28)}
+
+/* ════════════════════════════════════════
+   TOAST
+════════════════════════════════════════ */
+#toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(0,15,40,.98);border:1px solid var(--border);border-radius:9px;padding:10px 22px;font-size:11px;font-family:var(--mono);color:var(--text);z-index:900;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.65);letter-spacing:.5px}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:rgba(0,255,136,.35);color:var(--success)}
+#toast.error{border-color:rgba(255,60,60,.35);color:var(--danger)}
+#toast.warn{border-color:rgba(255,170,0,.35);color:var(--warn)}
+
+/* ════════════════════════════════════════
+   AUTH PIN SYSTEM
+════════════════════════════════════════ */
+.auth-overlay{display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.auth-overlay.active{display:flex;animation:fadeIn .25s ease}
+.ao-logo img{width:68px;height:68px;border-radius:16px;object-fit:cover;box-shadow:0 0 30px rgba(0,150,255,.2)}
+.ao-title{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--blue2);letter-spacing:5px}
+.ao-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;max-width:300px;letter-spacing:1px;line-height:1.6}
+.ao-email{font-size:12px;color:var(--blue2);font-family:var(--mono);letter-spacing:1px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.pin-dots{display:flex;gap:14px;margin:6px 0}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid rgba(0,170,255,.2);background:transparent;transition:all .15s}
+.pin-dot.filled{background:var(--blue);border-color:var(--blue);box-shadow:0 0 8px rgba(0,170,255,.4)}
+.pin-dot.success{background:var(--success);border-color:var(--success);animation:pinSuccess .3s ease}
+.pin-pad{display:grid;grid-template-columns:repeat(3,76px);gap:10px}
+.pin-btn{height:76px;border-radius:14px;border:1px solid rgba(0,170,255,.13);background:rgba(0,20,60,.65);color:var(--text);font-family:var(--mono);font-size:24px;cursor:pointer;transition:all .12s;user-select:none}
+.pin-btn:hover{background:rgba(0,170,255,.1);border-color:rgba(0,170,255,.3)}
+.pin-btn:active{background:rgba(0,170,255,.18);transform:scale(.93)}
+.pin-btn.del{font-size:17px;color:var(--muted)}
+.pin-btn.empty{visibility:hidden;pointer-events:none}
+.pin-err{font-size:11px;color:var(--danger);font-family:var(--mono);display:none;text-align:center;min-height:16px;max-width:280px;line-height:1.5}
+.pin-err.visible{display:block}
+.pin-link{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:6px 14px;cursor:pointer;letter-spacing:1px;transition:all .2s;margin-top:4px}
+.pin-link:hover{color:var(--blue2);border-color:var(--blue)}
+
+/* Bouton Google */
+.google-btn{width:100%;max-width:300px;padding:14px 20px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);color:#e8eaed;font-size:14px;font-family:var(--sans);font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:12px}
+.google-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);box-shadow:0 4px 24px rgba(0,0,0,.4);transform:translateY(-1px)}
+.google-btn:active{transform:translateY(0)}
+.google-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.google-icon{width:20px;height:20px;flex-shrink:0}
+
+/* Spinner chargement */
+.ao-spinner{width:36px;height:36px;border:3px solid rgba(0,170,255,.15);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+.ao-loading-text{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:2px}
+
+/* ════════════════════════════════════════
+   RESPONSIVE
+════════════════════════════════════════ */
+@media(max-width:600px){
+  .module-slot{width:135px;height:76px}
+  .pin-pad{grid-template-columns:repeat(3,68px);gap:8px}
+  .pin-btn{height:68px;font-size:22px}
+  #topbar{padding:0 14px}
+}
+@media(max-width:380px){
+  .module-slot{width:118px;height:70px}
+  .pin-pad{grid-template-columns:repeat(3,62px);gap:7px}
+  .pin-btn{height:62px;font-size:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════ -->
+<div id="topbar">
+  <div class="tb-logo">
+    <img src="icon-192.png" alt="Jarvis OS"/>
+  </div>
+  <div id="tb-right">
+    <div id="sync-indicator">
+      <div id="sync-dot"></div>
+      <span id="sync-text">HORS LIGNE</span>
+    </div>
+    <div id="user-btn" onclick="toggleDropdown()">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <span id="user-name">CONNEXION</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DROPDOWN
+══════════════════════════════════════ -->
+<div id="user-dropdown">
+  <div class="ud-header">
+    <div class="ud-name" id="dd-name">—</div>
+    <div class="ud-email" id="dd-email">—</div>
+  </div>
+  <div class="ud-item" onclick="openSettings();closeDropdown()">⚙ Paramètres</div>
+  <div class="ud-item" onclick="changePin()">🔑 Changer le PIN</div>
+  <div class="ud-item" onclick="forceSync();closeDropdown()">↺ Synchroniser</div>
+  <div class="ud-sep"></div>
+  <div class="ud-item danger" onclick="doSignOut()">⏻ Déconnexion</div>
+</div>
+
+<!-- ══════════════════════════════════════
+     APP PRINCIPALE
+══════════════════════════════════════ -->
+<div id="app">
+  <div id="hud-wrap">
+    <div id="jarvis-center">
+      <canvas id="hud"></canvas>
+      <div id="state-label">EN LIGNE</div>
+    </div>
+  </div>
+  <div id="state-btns">
+    <button class="state-btn active" onclick="setState('online')">EN LIGNE</button>
+    <button class="state-btn" onclick="setState('listening')">ÉCOUTE</button>
+    <button class="state-btn" onclick="setState('working')">TRAVAILLE</button>
+    <button class="state-btn" onclick="setState('speaking')">PARLE</button>
+  </div>
+  <div id="modules-row"></div>
+</div>
+
+<input type="file" id="file-input" accept=".html" onchange="loadModule(event)"/>
+
+<!-- ══════════════════════════════════════
+     MODULE IFRAME
+══════════════════════════════════════ -->
+<div id="module-frame">
+  <div id="mf-bar">
+    <button id="mf-close" onclick="closeModule()">← RETOUR</button>
+    <span id="mf-title">MODULE</span>
+  </div>
+  <iframe id="module-iframe" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"></iframe>
+</div>
+
+<!-- ══════════════════════════════════════
+     PARAMÈTRES
+══════════════════════════════════════ -->
+<div id="settings-panel">
+  <div id="sp-bar">
+    <button id="sp-close" onclick="closeSettings()">← RETOUR</button>
+    <span id="sp-title">PARAMÈTRES</span>
+  </div>
+  <div id="sp-content">
+    <div class="sp-section">
+      <div class="sp-section-title">Profil</div>
+      <div class="sp-field"><label>Nom d'affichage</label><input type="text" id="sp-display-name" placeholder="Ton prénom"/></div>
+      <button class="sp-btn primary" onclick="saveProfile()">Enregistrer</button>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Compte</div>
+      <div class="sp-field"><label>Email</label><input type="text" id="sp-email" disabled/></div>
+      <div class="sp-field"><label>Connexion via</label><input type="text" id="sp-provider" disabled/></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Données & Modules</div>
+      <button class="sp-btn secondary" onclick="exportModules()">⬇ Exporter les modules</button>
+      <button class="sp-btn secondary" onclick="document.getElementById('import-input').click()">⬆ Importer des modules</button>
+      <input type="file" id="import-input" accept=".json" style="display:none" onchange="importModules(event)"/>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Sécurité</div>
+      <button class="sp-btn secondary" onclick="changePin()">🔑 Changer mon code PIN</button>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Zone de danger</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        La suppression du compte est irréversible. Toutes tes données (modules, profil, configuration) seront définitivement effacées.
+      </p>
+      <button class="sp-btn danger" onclick="deleteAccount()">🗑 Supprimer mon compte</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     AUTH — ÉCRAN GOOGLE
+══════════════════════════════════════ -->
+<div id="overlayEmailEntry" class="auth-overlay active">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Entre ton adresse email</div>
+  <div class="pin-err" id="email-err"></div>
+  <input type="email" id="email-input" placeholder="email@exemple.com"
+    style="width:100%;max-width:280px;padding:13px 16px;background:rgba(0,20,60,.7);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;text-align:center"
+    onkeydown="if(event.key==='Enter')checkEmailAccount()"/>
+  <button class="google-btn" id="emailContinueBtn" onclick="checkEmailAccount()" style="background:rgba(0,100,220,.35);border-color:rgba(0,170,255,.3)">
+    Continuer
+  </button>
+</div>
+
+<!-- ÉCRAN VÉRIFICATION GOOGLE (première inscription uniquement) -->
+<div id="overlayGoogle" class="auth-overlay">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Aucun compte trouvé pour cet email.<br/>Connecte-toi avec Google pour créer ton compte<br/>et prouver que cette adresse t'appartient.</div>
+  <div class="ao-email" id="create-email-display"></div>
+  <div id="google-err" class="pin-err"></div>
+  <button class="google-btn" id="googleBtn" onclick="signInWithGoogle()">
+    <svg class="google-icon" viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+    Continuer avec Google
+  </button>
+  <button class="pin-link" onclick="showOverlay('overlayEmailEntry')">← Retour</button>
+</div>
+
+<!-- ÉCRAN CHARGEMENT OAUTH -->
+<div id="overlayLoading" class="auth-overlay">
+  <div class="ao-spinner"></div>
+  <div class="ao-loading-text">CONNEXION EN COURS...</div>
+</div>
+
+<!-- ÉCRAN SAISIR PIN -->
+<div id="overlayEnterPin" class="auth-overlay">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Saisis ton code PIN</div>
+  <div class="ao-email" id="pin-email"></div>
+  <div class="pin-dots" id="enter-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-err" id="enter-err"></div>
+  <div class="pin-pad" id="enter-pad"></div>
+  <button class="pin-link" onclick="doSignOut()">← Changer de compte</button>
+</div>
+
+<!-- ÉCRAN CRÉER PIN -->
+<div id="overlayCreatePin" class="auth-overlay">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Crée ton code PIN à 6 chiffres<br/>Il te sera demandé à chaque ouverture</div>
+  <div class="pin-dots" id="create-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-err" id="create-err"></div>
+  <div class="pin-pad" id="create-pad"></div>
+</div>
+
+<!-- ÉCRAN CONFIRMER PIN -->
+<div id="overlayConfirmPin" class="auth-overlay">
+  <div class="ao-logo"><img src="icon-192.png" alt="Jarvis OS"/></div>
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Confirme ton code PIN</div>
+  <div class="pin-dots" id="confirm-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-err" id="confirm-err"></div>
+  <div class="pin-pad" id="confirm-pad"></div>
+</div>
+
+<!-- ÉCRAN CHANGER PIN — ancien PIN -->
+<div id="overlayOldPin" class="auth-overlay">
+  <div class="ao-title">JARVIS OS</div>
+  <div class="ao-sub">Entre ton PIN actuel pour le changer</div>
+  <div class="pin-dots" id="oldpin-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-err" id="oldpin-err"></div>
+  <div class="pin-pad" id="oldpin-pad"></div>
+  <button class="pin-link" onclick="cancelChangePin()">Annuler</button>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirm-modal">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title">Confirmer</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button class="confirm-cancel" onclick="resolveConfirm(false)">Annuler</button>
+      <button class="confirm-ok" id="confirm-ok-btn" onclick="resolveConfirm(true)">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict'
+
+// ════════════════════════════════════════════
+// CONFIGURATION
+// ════════════════════════════════════════════
+const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY1NjgsImV4cCI6MjA5Nzk3MjU2OH0.9XrL6fP90b84R6VzbD4LS-rVaUxTdwRFimRVixrsdcw'
+const MAX_MODULE_SIZE_MB = 2
+const PIN_LENGTH         = 6
+const PIN_MAX_ATTEMPTS   = 5
+const SYNC_DEBOUNCE_MS   = 2500
+const LS_PREFIX          = 'jarvis_'
+
+// ════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ════════════════════════════════════════════
+let sb              = null
+let currentUser     = null
+let currentProfile  = null
+let MODULES         = []
+let syncTimeout     = null
+let syncLock        = false
+let confirmResolve  = null
+let jarvisState     = 'online'
+let hudAnimId       = null
+let pinAttempts     = 0
+let pinFirstEntry   = ''
+let previousOverlay = null
+let pendingEmail    = null
+
+window.JARVIS = { audioAmplitude: 0 }
+
+// ════════════════════════════════════════════
+// HUD CANVAS — démarre immédiatement
+// ════════════════════════════════════════════
+const canvas = document.getElementById('hud')
+const ctx    = canvas.getContext('2d')
+let W=0, H=0, cx=0, cy=0, t=0
+const NPART = 500
+let particles = []
+
+function resizeHUD(){
+  const wrap = document.getElementById('hud-wrap')
+  const S = Math.max(180, Math.min(wrap.offsetHeight-24, wrap.offsetWidth-24))
+  const el = document.getElementById('jarvis-center')
+  el.style.width = S+'px'; el.style.height = S+'px'
+  canvas.width = S; canvas.height = S
+  W=S; H=S; cx=S/2; cy=S/2
+  buildParticles()
+}
+
+function buildParticles(){
+  const R = W*.30; particles = []
+  for(let i=0; i<NPART; i++){
+    const ang = Math.random()*Math.PI*2
+    const u   = (i+Math.random())/NPART
+    const dist = R*Math.sqrt(u)*.92
+    const listenAng = (i/NPART)*Math.PI*2 + (Math.random()-.5)*(Math.PI*2/NPART)*1.5
+    const rnd = Math.random()
+    const listenR = rnd<.82 ? R*(.76+Math.random()*.22) :
+                   rnd<.94 ? R*(.64+Math.random()*.12) :
+                   rnd<.98 ? R*(.52+Math.random()*.12) : R*(.40+Math.random()*.12)
+    particles.push({ ang, dist, listenR, listenAng,
+      x: cx+Math.cos(ang)*dist, y: cy+Math.sin(ang)*dist,
+      sz:.9, ph:Math.random()*Math.PI*2, al:Math.random()*.5+.4 })
+  }
+}
+
+function drawHUD(){
+  hudAnimId = requestAnimationFrame(drawHUD)
+  if(document.hidden) return
+  t += 0.016
+  ctx.clearRect(0,0,W,H)
+
+  // ── Vitesses de rotation des anneaux ──
+  const spd = {online:.18, listening:.9, working:.55, speaking:.65}[jarvisState]||.18
+  const rot  = t * spd * .35
+
+  // ── BPM → fréquence radiale globale (battement de coeur) ──
+  // EN LIGNE   : 10 BPM  → période 6s
+  // TRAVAILLE  : 50 BPM  → période 1.2s
+  // (PARLE et ÉCOUTE gardent leur logique propre)
+  const bpmOnline  = 10
+  const bpmWorking = 50
+  const freqOnline  = (bpmOnline  / 60) * Math.PI * 2
+  const freqWorking = (bpmWorking / 60) * Math.PI * 2
+
+  // Battement de cœur global (modulation du rayon total)
+  // Forme : sin positif uniquement → diastole/systole
+  const heartOnline  = Math.sin(t * freqOnline)   // -1 à 1
+  const heartWorking = Math.sin(t * freqWorking)
+
+  // Fond
+  const bgG = ctx.createRadialGradient(cx,cy,0,cx,cy,W*.5)
+  bgG.addColorStop(0,'rgba(0,45,110,.45)')
+  bgG.addColorStop(.65,'rgba(0,12,45,.2)')
+  bgG.addColorStop(1,'rgba(0,4,16,0)')
+  ctx.beginPath();ctx.arc(cx,cy,W*.5,0,Math.PI*2);ctx.fillStyle=bgG;ctx.fill()
+
+  const GAP=W*.038, R4=W*.310, R3=R4+GAP, R2=R3+GAP*.5, R1=R2+GAP*1.2
+
+  // Anneau R1 pointillé
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot)
+  ctx.globalAlpha=.45;ctx.strokeStyle='#44ccff';ctx.lineWidth=1
+  ctx.setLineDash([3,4]);ctx.beginPath();ctx.arc(0,0,R1,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])
+  for(let i=0;i<24;i++){
+    const a=(i/24)*Math.PI*2,maj=i%6===0,mid=i%2===0,len=maj?11:mid?7:4
+    ctx.globalAlpha=maj?.85:mid?.5:.28;ctx.strokeStyle='#44ccff';ctx.lineWidth=maj?1.8:mid?1.2:.8
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*R1,Math.sin(a)*R1);ctx.lineTo(Math.cos(a)*(R1+len),Math.sin(a)*(R1+len));ctx.stroke()
+  }
+  ctx.restore()
+
+  // Anneau R2
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(-rot*.5)
+  ctx.globalAlpha=.22;ctx.strokeStyle='#2299dd';ctx.lineWidth=.7
+  ctx.setLineDash([2,7]);ctx.beginPath();ctx.arc(0,0,R2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore()
+
+  // Anneau R3 arcs
+  const arcSpan=Math.PI*(110/180)
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot*1.1)
+  ctx.strokeStyle='#44bbee';ctx.lineWidth=1.4;ctx.globalAlpha=.58
+  for(let i=0;i<3;i++){const c=(i/3)*Math.PI*2;ctx.beginPath();ctx.arc(0,0,R3,c-arcSpan/2,c+arcSpan/2);ctx.stroke()}
+  ctx.restore()
+
+  // Anneau R4
+  ctx.save();ctx.globalAlpha=.28;ctx.strokeStyle='#2299cc';ctx.lineWidth=.8
+  ctx.beginPath();ctx.arc(cx,cy,R4,0,Math.PI*2);ctx.stroke();ctx.restore()
+
+  // ── PARTICULES ──
+  particles.forEach(p=>{
+    let tx, ty
+
+    if(jarvisState==='listening'){
+      // Tourne sur orbite comme PARLE
+      const na = p.listenAng + t * .55
+      tx = cx + Math.cos(na) * p.listenR
+      ty = cy + Math.sin(na) * p.listenR
+
+    } else if(jarvisState==='speaking'){
+      // Rotation lente + oscillation radiale individuelle (phase propre)
+      const amp   = window.JARVIS.audioAmplitude || 0
+      const wave  = Math.sin(t * 2.5 + p.ph * 3) * (.07 + amp * .35)
+      const orbit = p.ang + t * .12
+      tx = cx + Math.cos(orbit) * p.dist * (1 + wave)
+      ty = cy + Math.sin(orbit) * p.dist * (1 + wave)
+
+    } else if(jarvisState==='online'){
+      // Oscillation radiale individuelle (phase propre) + battement global 10 BPM
+      // Chaque point oscille indépendamment sur sa propre phase
+      const indivOsc  = Math.sin(t * 1.8 + p.ph * Math.PI * 2) * .06  // oscillation individuelle
+      const heartPulse = heartOnline * .10                               // battement global 10 BPM
+      const scale = 1 + indivOsc + heartPulse
+      tx = cx + Math.cos(p.ang) * p.dist * scale
+      ty = cy + Math.sin(p.ang) * p.dist * scale
+
+    } else { // working
+      // Même principe qu'EN LIGNE mais 50 BPM pour le battement
+      const indivOsc   = Math.sin(t * 2.2 + p.ph * Math.PI * 2) * .07
+      const heartPulse = heartWorking * .13
+      const scale = 1 + indivOsc + heartPulse
+      tx = cx + Math.cos(p.ang) * p.dist * scale
+      ty = cy + Math.sin(p.ang) * p.dist * scale
+    }
+
+    // Contient dans R4
+    const rdx=tx-cx, rdy=ty-cy, rd=Math.hypot(rdx,rdy)
+    if(rd>R4){tx=cx+rdx*(R4/rd);ty=cy+rdy*(R4/rd)}
+
+    // Lissage
+    p.x += (tx-p.x) * .07
+    p.y += (ty-p.y) * .07
+
+    const d   = Math.hypot(p.x-cx, p.y-cy)
+    const ctr = Math.max(0, 1-d/(R4*.4))
+    const al  = p.al * (.85 + Math.sin(t*.7+p.ph)*.15) + ctr*.12
+    if(al<.05) return
+
+    // Halo working plus intense
+    let haloR, haloAl
+    if(jarvisState==='working'){
+      const hS = heartWorking*.5+.5
+      haloR  = p.sz * (2 + hS*4.5)
+      haloAl = al * (.2 + hS*.6)
+    } else {
+      haloR  = p.sz * 2
+      haloAl = al * .22
+    }
+
+    const gr = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR)
+    gr.addColorStop(0, `rgba(0,160,255,${haloAl})`)
+    gr.addColorStop(1, 'rgba(0,100,255,0)')
+    ctx.beginPath();ctx.arc(p.x,p.y,haloR,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill()
+    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2)
+    ctx.fillStyle=`rgba(245,253,255,${Math.min(1,al*3)})`;ctx.fill()
+  })
+
+  // Centre
+  const hg = ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025)
+  hg.addColorStop(0,'rgba(60,160,255,.15)')
+  hg.addColorStop(1,'rgba(0,80,180,0)')
+  ctx.beginPath();ctx.arc(cx,cy,W*.025,0,Math.PI*2);ctx.fillStyle=hg;ctx.fill()
+}
+
+window.setState = function(s){
+  jarvisState = s
+  const L = {online:'EN LIGNE',listening:'ÉCOUTE',working:'TRAVAILLE',speaking:'PARLE'}
+  document.getElementById('state-label').textContent = L[s]||s
+  document.querySelectorAll('.state-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===L[s]))
+}
+
+window.addEventListener('resize', resizeHUD)
+resizeHUD(); drawHUD()
+
+// ════════════════════════════════════════════
+// UTILITAIRES UI
+// ════════════════════════════════════════════
+function toast(msg, type='info', dur=3200){
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.className = 'show' + (type==='success'?' success':type==='error'?' error':type==='warn'?' warn':'')
+  clearTimeout(el._t)
+  el._t = setTimeout(()=>el.classList.remove('show'), dur)
+}
+
+function setSyncStatus(status, label){
+  const dot = document.getElementById('sync-dot')
+  const txt = document.getElementById('sync-text')
+  const colors = { ok:'var(--success)', syncing:'var(--blue)', offline:'#ff6600', error:'var(--danger)' }
+  const c = colors[status]||colors.offline
+  dot.style.background = c
+  dot.style.boxShadow  = `0 0 6px ${c}`
+  dot.style.width  = '6px'
+  dot.style.height = '6px'
+  dot.style.borderRadius = '50%'
+  dot.style.animation = status==='syncing' ? 'blink .7s infinite' : ''
+  txt.textContent = label
+}
+
+window.resolveConfirm = function(v){
+  document.getElementById('confirm-modal').classList.remove('visible')
+  if(confirmResolve) confirmResolve(v)
+  confirmResolve = null
+}
+function confirm2(title, msg, okLabel='Confirmer'){
+  return new Promise(r=>{
+    confirmResolve = r
+    document.getElementById('confirm-title').textContent  = title
+    document.getElementById('confirm-msg').textContent    = msg
+    document.getElementById('confirm-ok-btn').textContent = okLabel
+    document.getElementById('confirm-modal').classList.add('visible')
+  })
+}
+
+// ════════════════════════════════════════════
+// GESTION DES OVERLAYS
+// ════════════════════════════════════════════
+function showOverlay(id){
+  document.querySelectorAll('.auth-overlay').forEach(el=>el.classList.remove('active'))
+  if(id) document.getElementById(id).classList.add('active')
+}
+
+// ════════════════════════════════════════════
+// SÉCURITÉ — HASH PIN SHA-256
+// ════════════════════════════════════════════
+async function hashPin(pin, userId){
+  // PBKDF2 avec 100k itérations — résistant au bruteforce
+  const uid = userId || currentUser?.id || ''
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(pin),
+    'PBKDF2', false, ['deriveBits']
+  )
+  const bits = await crypto.subtle.deriveBits({
+    name: 'PBKDF2',
+    salt: new TextEncoder().encode('jarvis_salt_' + uid),
+    iterations: 100000,
+    hash: 'SHA-256'
+  }, keyMaterial, 256)
+  return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('')
+}
+
+// Dérive le mot de passe Supabase depuis le PIN (non-réversible)
+async function pinToPassword(pin, userId){
+  const hash = await hashPin(pin, userId)
+  return 'Jrv_' + hash.slice(0,32) + '_Os'  // 38 chars, respecte politique Supabase
+}
+
+// LocalStorage keys — uniquement pour le cache modules (le PIN est en cloud)
+const lsKey = {
+  modules: ()  => LS_PREFIX+'modules',
+  syncTs:  ()  => LS_PREFIX+'sync_ts',
+}
+
+// ════════════════════════════════════════════
+// SYSTÈME PIN
+// ════════════════════════════════════════════
+function buildPad(padId, dotsId, onComplete, errId){
+  const pad  = document.getElementById(padId)
+  const errEl= document.getElementById(errId)
+  pad.innerHTML = ''
+  let entry = ''
+  const dots = document.getElementById(dotsId).querySelectorAll('.pin-dot')
+
+  function updateDots(){
+    dots.forEach((d,i)=>{
+      d.classList.toggle('filled', i<entry.length)
+      d.classList.remove('success')
+    })
+    if(entry.length === PIN_LENGTH){
+      dots.forEach(d=>d.classList.add('success'))
+      setTimeout(()=>onComplete(entry, reset), 180)
+    }
+  }
+
+  function reset(shake=false){
+    entry = ''
+    dots.forEach(d=>{
+      d.classList.remove('filled','success')
+      if(shake){
+        d.style.animation='none'; d.offsetHeight
+        d.style.animation='shake .35s ease'
+      }
+    })
+    if(!shake && errEl){ errEl.textContent=''; errEl.classList.remove('visible') }
+  }
+
+  ;['1','2','3','4','5','6','7','8','9','empty','0','del'].forEach(k=>{
+    const btn = document.createElement('button')
+    btn.className = 'pin-btn' + (k==='del'?' del':k==='empty'?' empty':'')
+    btn.textContent = k==='del'?'⌫':k==='empty'?'':k
+    if(k!=='empty') btn.onclick = ()=>{
+      if(k==='del'){ if(entry.length>0){entry=entry.slice(0,-1); updateDots()} }
+      else if(entry.length<PIN_LENGTH){ entry+=k; updateDots() }
+    }
+    pad.appendChild(btn)
+  })
+
+  return { reset }
+}
+
+// ── PIN vérifié et stocké dans Supabase (table profiles.pin_hash) ──
+// Le PIN est donc lié au compte email, pas à l'appareil.
+
+function setupCreatePin(){
+  pinFirstEntry = ''
+  buildPad('create-pad','create-dots', (val, reset)=>{
+    pinFirstEntry = val
+    showOverlay('overlayConfirmPin')
+    setupConfirmPin()
+  }, 'create-err')
+}
+
+function setupConfirmPin(){
+  buildPad('confirm-pad','confirm-dots', async(val, reset)=>{
+    if(val === pinFirstEntry){
+      try{
+        const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
+        // currentUser vient de la session Google fraîchement validée
+        // On définit ce PIN comme mot de passe Supabase pour ce compte
+        const { error } = await sb.auth.updateUser({ password: pinAsPassword })
+        if(error) throw error
+        // Marque le profil comme ayant un PIN configuré
+        await sb.from('profiles').upsert({
+          id: currentUser.id,
+          email: currentUser.email.toLowerCase(),
+          pin_hash: 'configured',
+          updated_at: new Date().toISOString()
+        })
+        pinFirstEntry = ''
+        await afterPinValidated()
+      }catch(e){
+        const err = document.getElementById('confirm-err')
+        err.textContent = 'Erreur de sauvegarde : '+e.message
+        err.classList.add('visible')
+        reset(true)
+      }
+    } else {
+      const err = document.getElementById('confirm-err')
+      err.textContent = 'PIN non identique. Recommence.'
+      err.classList.add('visible')
+      reset(true)
+      pinFirstEntry = ''
+      setTimeout(()=>{ showOverlay('overlayCreatePin'); setupCreatePin() }, 900)
+    }
+  }, 'confirm-err')
+}
+
+// ════════════════════════════════════════════
+// CHANGER LE PIN
+// ════════════════════════════════════════════
+window.changePin = function(){
+  closeDropdown()
+  showOverlay('overlayOldPin')
+  buildPad('oldpin-pad','oldpin-dots', async(val, reset)=>{
+    const err = document.getElementById('oldpin-err')
+    try{
+      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: currentUser.email,
+        password: pinAsPassword
+      })
+      if(error) throw error
+      showOverlay('overlayCreatePin')
+      setupCreatePin()
+    }catch(e){
+      err.textContent = 'PIN incorrect.'
+      err.classList.add('visible')
+      reset(true)
+    }
+  }, 'oldpin-err')
+}
+
+window.cancelChangePin = function(){
+  showOverlay(null)
+  toast('Changement de PIN annulé','info')
+}
+
+// ════════════════════════════════════════════
+// APRÈS PIN VALIDÉ — accès au dashboard
+// ════════════════════════════════════════════
+async function afterPinValidated(){
+  showOverlay(null)
+  if(sb && currentUser){
+    await loadProfile(currentUser)
+    await loadModulesFromCloud(currentUser.id)
+    setupRealtime(currentUser.id)
+  }
+}
+
+// ════════════════════════════════════════════
+// GOOGLE AUTH
+// ════════════════════════════════════════════
+async function signInWithGoogle(){
+  if(!sb){ toast('Clés Supabase manquantes dans index.html','error'); return }
+  const btn = document.getElementById('googleBtn')
+  const err = document.getElementById('google-err')
+  err.textContent = ''; err.classList.remove('visible')
+  btn.disabled = true
+  btn.innerHTML = '<div style="width:20px;height:20px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div> Ouverture de Google...'
+  try{
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: { access_type:'offline', prompt:'consent' }
+      }
+    })
+    if(error) throw error
+    // Redirection en cours — Google prend la main
+  } catch(e){
+    err.textContent = e.message; err.classList.add('visible')
+    btn.disabled = false
+    btn.innerHTML = `<svg class="google-icon" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continuer avec Google`
+  }
+}
+
+window.doSignOut = async function(){
+  closeDropdown()
+  currentUser = null; currentProfile = null; MODULES = []
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel=null }
+  if(sb){ try{ await sb.auth.signOut() }catch(e){} }
+  document.getElementById('user-name').textContent = 'CONNEXION'
+  document.getElementById('user-avatar').innerHTML = '?'
+  setSyncStatus('offline','HORS LIGNE')
+  renderModules()
+  document.getElementById('email-input').value=''
+  showOverlay('overlayEmailEntry')
+  setTimeout(()=>document.getElementById('email-input')?.focus(),200)
+  document.getElementById('googleBtn').disabled = false
+  document.getElementById('googleBtn').innerHTML = `<svg class="google-icon" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continuer avec Google`
+}
+
+// ════════════════════════════════════════════
+// SUPABASE INIT — flow OAuth propre
+// ════════════════════════════════════════════
+async function initSupabase(){
+  if(SUPABASE_ANON_KEY.includes('XXXXXXX')){
+    setSyncStatus('offline','MODE LOCAL')
+    toast('Configure ta clé anon Supabase dans index.html','warn',8000)
+    loadModulesLocal(); renderModules(); return
+  }
+
+  try{
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
+    sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { autoRefreshToken:true, persistSession:true, detectSessionInUrl:false }
+    })
+
+    // ── Retour OAuth Google (uniquement lors d'une création de compte) ──
+    const rawHash = window.location.hash
+    const isOAuth = rawHash.includes('access_token')
+
+    if(isOAuth){
+      showOverlay('overlayLoading')
+      history.replaceState(null, '', window.location.pathname)
+      const params = new URLSearchParams(rawHash.replace('#',''))
+      const accessToken  = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if(accessToken && refreshToken){
+        const { data, error } = await sb.auth.setSession({ access_token:accessToken, refresh_token:refreshToken })
+        if(!error && data?.session?.user){
+          // Identité confirmée par Google → on passe à la création du PIN
+          currentUser = data.session.user
+          loadModulesLocal(); renderModules()
+          showOverlay('overlayCreatePin')
+          setupCreatePin()
+          return
+        }
+      }
+      toast('Échec de la vérification Google','error')
+      showOverlay('overlayEmailEntry')
+      return
+    }
+
+    // ── Démarrage normal : toujours demander l'email ──
+    loadModulesLocal(); renderModules()
+    showOverlay('overlayEmailEntry')
+    setTimeout(()=>document.getElementById('email-input')?.focus(), 200)
+
+  }catch(e){
+    console.error('[Jarvis] Supabase init error:', e)
+    setSyncStatus('error','ERREUR INIT')
+    loadModulesLocal(); renderModules()
+    showOverlay('overlayEmailEntry')
+    toast('Erreur de connexion Supabase','error')
+  }
+}
+
+// ── Vérifie si un compte existe pour cet email ──
+window.checkEmailAccount = async function(){
+  const emailInput = document.getElementById('email-input')
+  const email = emailInput.value.trim().toLowerCase()
+  const err = document.getElementById('email-err')
+  err.textContent=''; err.classList.remove('visible')
+
+  if(!email || !email.includes('@')){
+    err.textContent = 'Entre une adresse email valide.'
+    err.classList.add('visible')
+    return
+  }
+
+  const btn = document.getElementById('emailContinueBtn')
+  btn.disabled = true; btn.textContent = 'Vérification...'
+
+  try{
+    const { data, error } = await sb.rpc('check_email_has_pin', { p_email: email })
+    btn.disabled = false; btn.textContent = 'Continuer'
+
+    pendingEmail = email
+
+    if(data === true){
+      // Compte existant avec PIN → demande le PIN
+      document.getElementById('pin-email').textContent = email
+      showOverlay('overlayEnterPin')
+      setupEnterPinByEmail()
+    } else {
+      // Aucun compte ou pas de PIN → vérification identité Google requise
+      document.getElementById('create-email-display').textContent = email
+      showOverlay('overlayGoogle')
+    }
+  }catch(e){
+    btn.disabled = false; btn.textContent = 'Continuer'
+    err.textContent = 'Erreur réseau. Réessaie.'
+    err.classList.add('visible')
+  }
+}
+
+// ── Saisie PIN pour un compte existant (sans session active) ──
+function setupEnterPinByEmail(){
+  pinAttempts = 0
+  buildPad('enter-pad','enter-dots', async(val, reset)=>{
+    const err = document.getElementById('enter-err')
+    try{
+      // Le PIN EST le mot de passe Supabase (6 chiffres = mot de passe minimum requis étendu)
+      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)  // dérivation fixe pour respecter la politique mdp Supabase
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: pendingEmail,
+        password: pinAsPassword
+      })
+      if(error) throw error
+      if(data?.session?.user){
+        pinAttempts = 0
+        currentUser = data.session.user
+        await afterPinValidated()
+      }
+    }catch(e){
+      pinAttempts++
+      if(pinAttempts >= PIN_MAX_ATTEMPTS){
+        err.textContent = 'Trop de tentatives. Retour à l\'accueil...'
+        err.classList.add('visible')
+        setTimeout(()=>{ showOverlay('overlayEmailEntry'); document.getElementById('email-input').value='' }, 2000)
+      } else {
+        const left = PIN_MAX_ATTEMPTS - pinAttempts
+        err.textContent = `PIN incorrect — ${left} essai${left>1?'s':''} restant${left>1?'s':''}`
+        err.classList.add('visible')
+        reset(true)
+      }
+    }
+  }, 'enter-err')
+}
+
+async function applySession(user){
+  // Cette fonction n'est plus appelée que dans des cas résiduels (compat)
+  currentUser = user
+  loadModulesLocal(); renderModules()
+  showOverlay('overlayCreatePin')
+  setupCreatePin()
+}
+
+// ════════════════════════════════════════════
+// REALTIME — SYNC INSTANTANÉE MULTI-APPAREILS
+// ════════════════════════════════════════════
+let realtimeChannel = null
+
+function setupRealtime(userId){
+  // Ferme l'ancien canal si existant
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel=null }
+
+  realtimeChannel = sb.channel('jarvis_user_'+userId)
+
+  // Écoute les changements de profil (prénom, avatar...)
+  realtimeChannel.on('postgres_changes',{
+    event:'UPDATE', schema:'public', table:'profiles', filter:'id=eq.'+userId
+  }, payload=>{
+    if(!payload.new) return
+    const name = payload.new.display_name
+    if(name){
+      document.getElementById('user-name').textContent = name.toUpperCase().slice(0,13)
+      document.getElementById('dd-name').textContent   = name
+      document.getElementById('sp-display-name').value = name
+      const av = document.getElementById('user-avatar')
+      if(!av.querySelector('img')) av.textContent = name[0].toUpperCase()
+    }
+  })
+
+  // Écoute les changements de modules
+  realtimeChannel.on('postgres_changes',{
+    event:'*', schema:'public', table:'user_modules', filter:'user_id=eq.'+userId
+  }, ()=>{
+    // Recharge depuis le cloud sans déclencher une nouvelle sync
+    loadModulesFromCloud(userId)
+  })
+
+  realtimeChannel
+    .subscribe((status, err)=>{
+      if(status === 'SUBSCRIBED'){
+        console.log('[Jarvis] Realtime connecté')
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT'){
+        console.warn('[Jarvis] Realtime déconnecté, reconnexion dans 5s...', err)
+        setTimeout(()=>{ if(currentUser) setupRealtime(currentUser.id) }, 5000)
+      }
+    })
+}
+
+// ════════════════════════════════════════════
+// PROFIL UTILISATEUR
+// ════════════════════════════════════════════
+async function loadProfile(user){
+  try{
+    const { data, error } = await sb.from('profiles').select('*').eq('id', user.id).single()
+    if(error && error.code !== 'PGRST116') throw error
+    currentProfile = data
+
+    const name      = data?.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Utilisateur'
+    const avatarUrl = data?.avatar_url   || user.user_metadata?.avatar_url || null
+    const provider  = user.app_metadata?.provider || 'email'
+
+    document.getElementById('user-name').textContent = name.toUpperCase().slice(0,13)
+    const av = document.getElementById('user-avatar')
+    av.innerHTML = avatarUrl ? `<img src="${avatarUrl}" alt="${name}"/>` : name[0].toUpperCase()
+    document.getElementById('dd-name').textContent   = name
+    document.getElementById('dd-email').textContent  = user.email||''
+    document.getElementById('sp-display-name').value = name
+    document.getElementById('sp-email').value        = user.email||''
+    document.getElementById('sp-provider').value     = provider==='google' ? 'Google OAuth' : 'Email / mot de passe'
+
+    // Crée le profil si inexistant
+    if(!data){
+      await sb.from('profiles').upsert({
+        id: user.id,
+        display_name: name,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString()
+      })
+    }
+  }catch(e){ console.warn('[Jarvis] loadProfile:', e) }
+}
+
+window.saveProfile = async function(){
+  if(!currentUser||!sb){ toast('Non connecté','error'); return }
+  const name = document.getElementById('sp-display-name').value.trim()
+  if(!name){ toast('Le nom ne peut pas être vide','warn'); return }
+  try{
+    await sb.from('profiles').upsert({ id:currentUser.id, display_name:name, updated_at:new Date().toISOString() })
+    document.getElementById('user-name').textContent = name.toUpperCase().slice(0,13)
+    document.getElementById('dd-name').textContent   = name
+    const av = document.getElementById('user-avatar')
+    if(!av.querySelector('img')) av.textContent = name[0].toUpperCase()
+    toast('Profil enregistré','success')
+  }catch(e){ toast('Erreur : '+e.message,'error') }
+}
+
+window.deleteAccount = async function(){
+  if(!currentUser||!sb){ toast('Non connecté','error'); return }
+  closeSettings()
+  const ok1 = await confirm2(
+    '⚠️ Supprimer le compte',
+    'Cette action est irréversible. Tous tes modules et données seront définitivement supprimés.',
+    'Continuer'
+  )
+  if(!ok1) return
+  const ok2 = await confirm2(
+    'Dernière confirmation',
+    'Es-tu absolument certain de vouloir supprimer ton compte Jarvis OS ?',
+    '🗑 Supprimer définitivement'
+  )
+  if(!ok2) return
+
+  setSyncStatus('syncing','SUPPRESSION...')
+  try{
+    await sb.from('user_modules').delete().eq('user_id', currentUser.id)
+    await sb.from('profiles').delete().eq('id', currentUser.id)
+    localStorage.removeItem(lsKey.modules())
+    localStorage.removeItem(lsKey.syncTs())
+    await sb.auth.signOut()
+    currentUser = null; currentProfile = null; MODULES = []
+    document.getElementById('user-name').textContent = 'CONNEXION'
+    document.getElementById('user-avatar').innerHTML = '?'
+    renderModules()
+    setSyncStatus('offline','HORS LIGNE')
+    document.getElementById('email-input').value=''
+    showOverlay('overlayEmailEntry')
+    toast('Compte supprimé. À bientôt.','success', 5000)
+  }catch(e){
+    console.error('[Jarvis] deleteAccount error:', e)
+    setSyncStatus('error','ERREUR')
+    toast('Erreur lors de la suppression : '+e.message,'error',6000)
+  }
+}
+
+// ════════════════════════════════════════════
+// SYNC CLOUD — ROBUSTE
+// ════════════════════════════════════════════
+async function loadModulesFromCloud(userId){
+  setSyncStatus('syncing','SYNC...')
+  try{
+    const { data, error } = await sb
+      .from('user_modules')
+      .select('id,name,icon,sub,content,is_active,permissions,config,position,updated_at')
+      .eq('user_id', userId)
+      .order('position', { ascending:true })
+    if(error) throw error
+
+    const cloudModules = (data||[]).map(r=>({
+      name:r.name, icon:r.icon, sub:r.sub,
+      content:r.content, is_active:r.is_active??true,
+      permissions:r.permissions??{}, config:r.config??{}
+    }))
+
+    // Merge : si cloud plus récent que local, prend cloud
+    const localTs = parseInt(localStorage.getItem(lsKey.syncTs())||'0')
+    const now = Date.now()
+    MODULES = cloudModules
+    saveModulesLocal()
+    localStorage.setItem(lsKey.syncTs(), now)
+    renderModules()
+    setSyncStatus('ok','EN LIGNE')
+  }catch(e){
+    console.error('[Jarvis] Cloud load error:', e)
+    setSyncStatus('error','ERREUR SYNC')
+    toast('Sync impossible — données locales utilisées','warn')
+    loadModulesLocal(); renderModules()
+  }
+}
+
+async function pushModulesToCloud(){
+  if(!currentUser||!sb||syncLock) return
+  syncLock = true
+  setSyncStatus('syncing','SYNC...')
+  // Sauvegarde locale TOUJOURS en premier avant toute opération cloud
+  saveModulesLocal()
+  try{
+    // Vérification supplémentaire
+    if(!currentUser||!sb){ setSyncStatus('offline','HORS LIGNE'); return }
+    const rows = MODULES.map((m,i)=>({
+      user_id:    currentUser.id,
+      position:   i,
+      name:       m.name,
+      icon:       m.icon||'📦',
+      sub:        m.sub||'',
+      content:    m.content||'',
+      is_active:  m.is_active??true,
+      permissions:m.permissions??{},
+      config:     m.config??{},
+      updated_at: new Date().toISOString()
+    }))
+
+    // Utilise upsert sur position pour éviter delete+insert
+    const { error: delErr } = await sb
+      .from('user_modules')
+      .delete()
+      .eq('user_id', currentUser.id)
+    if(delErr) throw delErr
+
+    if(rows.length){
+      const { error: insErr } = await sb.from('user_modules').insert(rows)
+      if(insErr) throw insErr
+    }
+
+    localStorage.setItem(lsKey.syncTs(), Date.now())
+    setSyncStatus('ok','EN LIGNE')
+  }catch(e){
+    console.error('[Jarvis] Cloud push error:', e)
+    setSyncStatus('error','ERREUR SYNC')
+    toast('Sync échouée — sauvegardé localement','warn')
+  } finally {
+    syncLock = false
+  }
+}
+
+function debouncedSync(){
+  clearTimeout(syncTimeout)
+  syncTimeout = setTimeout(()=>{
+    if(currentUser && sb) pushModulesToCloud()
+  }, SYNC_DEBOUNCE_MS)
+}
+
+window.forceSync = async function(){
+  if(!currentUser||!sb){ toast('Non connecté','error'); return }
+  clearTimeout(syncTimeout)
+  await pushModulesToCloud()
+  toast('Synchronisation terminée','success')
+}
+
+// ════════════════════════════════════════════
+// LOCAL STORAGE
+// ════════════════════════════════════════════
+function saveModulesLocal(){
+  try{ localStorage.setItem(lsKey.modules(), JSON.stringify(MODULES)) }catch(e){}
+}
+function loadModulesLocal(){
+  try{
+    const raw = localStorage.getItem(lsKey.modules())
+    if(raw) MODULES = JSON.parse(raw)
+  }catch(e){ MODULES = [] }
+}
+
+// ════════════════════════════════════════════
+// GESTIONNAIRE DE MODULES
+// ════════════════════════════════════════════
+let activeSlot = null, swapSource = null
+
+window.renderModules = function(){
+  const row = document.getElementById('modules-row')
+  row.innerHTML = ''
+  MODULES.forEach((m,i)=>{
+    const slot = document.createElement('div')
+    slot.className = 'module-slot loaded' + (m.is_active===false?' inactive':'')
+    slot.innerHTML = `
+      <div class="mod-menu-btn" onclick="toggleMenu(event,${i})">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="mod-menu" id="menu-${i}">
+        <div class="mod-menu-item" onclick="openModule(${i});closeMenus()">▶ Ouvrir</div>
+        <div class="mod-menu-item" onclick="toggleActive(${i});closeMenus()">
+          ${m.is_active===false?'✓ Activer':'⏸ Désactiver'}
+        </div>
+        <div class="mod-menu-sep"></div>
+        <div class="mod-menu-item" onclick="startSwap(${i});closeMenus()">⇄ Déplacer</div>
+        <div class="mod-menu-item" onclick="replaceModule(${i});closeMenus()">↺ Remplacer</div>
+        <div class="mod-menu-sep"></div>
+        <div class="mod-menu-item danger" onclick="removeModule(${i});closeMenus()">✕ Retirer</div>
+      </div>
+      <div class="mod-icon" onclick="openModule(${i})">${m.icon||'📦'}</div>
+      <div class="mod-name" onclick="openModule(${i})">${m.name}</div>
+      <div class="mod-sub">${m.sub||''}</div>
+      <div class="mod-status-badge ${m.is_active===false?'inactive':'active'}">
+        ${m.is_active===false?'INACTIF':'ACTIF'}
+      </div>`
+    row.appendChild(slot)
+  })
+
+  const add = document.createElement('div')
+  add.className = 'module-slot add-slot'
+  add.innerHTML = '<div class="plus-circle">+</div><div class="plus-label">MODULE</div>'
+  add.onclick = ()=>{ activeSlot=null; triggerFilePicker() }
+  row.appendChild(add)
+}
+
+window.toggleMenu = function(e,i){
+  e.stopPropagation()
+  const menu = document.getElementById('menu-'+i)
+  const was  = menu.classList.contains('open')
+  closeMenus()
+  if(!was) menu.classList.add('open')
+}
+
+window.closeMenus = function(){
+  document.querySelectorAll('.mod-menu').forEach(m=>m.classList.remove('open'))
+}
+
+// Listener global unifié
+document.addEventListener('click', e=>{
+  closeMenus()
+  if(!document.getElementById('user-btn').contains(e.target)) closeDropdown()
+  if(swapSource!==null && !e.target.closest('.module-slot')){
+    swapSource = null
+    document.querySelectorAll('.module-slot').forEach(s=>s.style.outline='')
+    toast('Déplacement annulé','info')
+  }
+})
+
+function triggerFilePicker(){
+  document.getElementById('file-input').value = ''
+  document.getElementById('file-input').click()
+}
+
+window.loadModule = function(e){
+  const file = e.target.files[0]; if(!file) return
+  // Vérification taille
+  const sizeMB = file.size / 1024 / 1024
+  if(sizeMB > MAX_MODULE_SIZE_MB){
+    toast(`Fichier trop lourd (${sizeMB.toFixed(1)}MB). Max ${MAX_MODULE_SIZE_MB}MB.`,'error',5000)
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = ev=>{
+    const html = ev.target.result
+    const tm   = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    const name = tm ? tm[1].trim() : file.name.replace('.html','')
+    const icon = /tjp|trading/i.test(name)?'📈':/rpg|game/i.test(name)?'⚔️':/agenda|cal/i.test(name)?'📅':/jarvis/i.test(name)?'🤖':'📦'
+    const mod  = { name, icon, sub:file.name, content:html, is_active:true, permissions:{}, config:{} }
+    if(activeSlot!==null) MODULES[activeSlot]=mod; else MODULES.push(mod)
+    activeSlot = null
+    renderModules(); debouncedSync()
+    toast(`Module "${name}" ajouté`,'success')
+  }
+  reader.readAsText(file)
+}
+
+window.replaceModule = function(i){ activeSlot=i; triggerFilePicker() }
+
+window.removeModule = async function(i){
+  const ok = await confirm2('Retirer le module',`Retirer "${MODULES[i].name}" de Jarvis OS ?`,'Retirer')
+  if(!ok) return
+  MODULES.splice(i,1); renderModules(); debouncedSync()
+  toast('Module retiré','info')
+}
+
+window.toggleActive = function(i){
+  MODULES[i].is_active = !(MODULES[i].is_active??true)
+  renderModules(); debouncedSync()
+  toast(MODULES[i].is_active?'Module activé':'Module désactivé','success')
+}
+
+window.startSwap = function(i){
+  if(swapSource!==null && swapSource!==i){
+    const tmp=MODULES[swapSource]; MODULES[swapSource]=MODULES[i]; MODULES[i]=tmp
+    swapSource=null; renderModules(); debouncedSync()
+    toast('Modules échangés','success')
+  } else {
+    swapSource = i
+    document.querySelectorAll('.module-slot.loaded').forEach((s,idx)=>{
+      s.style.outline = idx!==i ? '1px dashed rgba(0,170,255,.4)' : '2px solid var(--blue)'
+    })
+    toast('Sélectionne le module destination','info')
+  }
+}
+
+window.openModule = function(i){
+  const m = MODULES[i]
+  if(!m || m.is_active===false) return
+  document.getElementById('mf-title').textContent = m.name.toUpperCase()
+  const blob = new Blob([m.content], {type:'text/html'})
+  document.getElementById('module-iframe').src = URL.createObjectURL(blob)
+  document.getElementById('module-frame').classList.add('open')
+}
+
+window.closeModule = function(){
+  document.getElementById('module-frame').classList.remove('open')
+  const iframe = document.getElementById('module-iframe')
+  // Notifie l'app qu'elle va se fermer
+  try{ iframe.contentWindow?.postMessage({type:'JARVIS_CLOSING'},'*') }catch(e){}
+  setTimeout(()=>{ iframe.src='about:blank' }, 100)
+}
+
+// ════════════════════════════════════════════
+// IMPORT / EXPORT
+// ════════════════════════════════════════════
+window.exportModules = function(){
+  if(!MODULES.length){ toast('Aucun module à exporter','warn'); return }
+  const blob = new Blob([JSON.stringify({
+    version:'2.0', exported_at:new Date().toISOString(),
+    user: currentUser?.email||'local', modules:MODULES
+  },null,2)],{type:'application/json'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `jarvis-modules-${new Date().toISOString().slice(0,10)}.json`
+  a.click()
+  toast('Export téléchargé','success')
+}
+
+window.importModules = function(e){
+  const file = e.target.files[0]; if(!file) return
+  const reader = new FileReader()
+  reader.onload = async ev=>{
+    try{
+      const data = JSON.parse(ev.target.result)
+      const mods = data.modules||data
+      if(!Array.isArray(mods)) throw new Error('Format invalide')
+      const ok = await confirm2('Importer',`Ajouter ${mods.length} module(s) à Jarvis OS ?`,'Importer')
+      if(!ok) return
+      // Vérification taille de chaque module
+      const valid = mods.filter(m=>{
+        const sizeMB = new Blob([m.content||'']).size/1024/1024
+        return sizeMB <= MAX_MODULE_SIZE_MB
+      })
+      if(valid.length < mods.length)
+        toast(`${mods.length-valid.length} module(s) ignoré(s) (trop lourd)`,'warn')
+      MODULES = [...MODULES, ...valid]
+      renderModules(); debouncedSync()
+      toast(`${valid.length} module(s) importé(s)`,'success')
+    }catch(e){ toast('Erreur import : '+e.message,'error') }
+  }
+  reader.readAsText(file); e.target.value=''
+}
+
+// ════════════════════════════════════════════
+// DROPDOWN & PARAMÈTRES
+// ════════════════════════════════════════════
+window.toggleDropdown = function(){ document.getElementById('user-dropdown').classList.toggle('open') }
+window.closeDropdown  = function(){ document.getElementById('user-dropdown').classList.remove('open') }
+window.openSettings   = function(){ document.getElementById('settings-panel').classList.add('open') }
+window.closeSettings  = function(){ document.getElementById('settings-panel').classList.remove('open') }
+
+// ════════════════════════════════════════════
+// ONLINE / OFFLINE
+// ════════════════════════════════════════════
+window.addEventListener('online', ()=>{
+  setSyncStatus('ok','EN LIGNE')
+  if(currentUser&&sb) loadModulesFromCloud(currentUser.id)
+})
+window.addEventListener('offline', ()=>{
+  setSyncStatus('offline','HORS LIGNE')
+  toast('Hors ligne — données locales actives','warn')
+})
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && currentUser && sb) debouncedSync()
+})
+
+// ════════════════════════════════════════════
+// PONT INTER-MODULES (postMessage API)
+// ════════════════════════════════════════════
+window.addEventListener('message', e=>{
+  if(!e.data||!e.data.type) return
+  // Sécurité: vérifie que le message vient de l'iframe du module actif
+  // On accepte: même origine, blob: URLs, et data: URLs
+  const allowedOrigins = [window.location.origin, 'null']
+  const origin = e.origin || 'null'
+  if(!allowedOrigins.includes(origin) && !origin.startsWith('blob:')) return
+  const d = e.data
+  switch(d.type){
+    case 'JARVIS_SET_STATE':
+      if(['online','listening','working','speaking'].includes(d.state)) setState(d.state)
+      break
+    case 'JARVIS_AUDIO_AMPLITUDE':
+      window.JARVIS.audioAmplitude = Math.max(0, Math.min(1, d.value||0))
+      break
+    case 'JARVIS_GET_USER':
+      document.getElementById('module-iframe').contentWindow?.postMessage({
+        type:'JARVIS_USER_INFO',
+        userId:      currentUser?.id||null,
+        displayName: currentProfile?.display_name||null,
+        email:       currentUser?.email||null,
+        avatarUrl:   currentProfile?.avatar_url||null
+      }, window.location.origin)
+      break
+    case 'JARVIS_TOAST':
+      toast(d.message||'', d.style||'info', d.duration||3200)
+      break
+    case 'JARVIS_SYNC':
+      if(currentUser&&sb) debouncedSync()
+      break
+  }
+})
+
+// ════════════════════════════════════════════
+// PWA
+// ════════════════════════════════════════════
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js')
+    .then(()=>console.log('[Jarvis] Service Worker enregistré'))
+    .catch(e=>console.warn('[Jarvis] SW error:', e))
+}
+
+// ════════════════════════════════════════════
+// DÉMARRAGE
+// ════════════════════════════════════════════
+renderModules()
+initSupabase()
+</script>
+</body>
+</html>
