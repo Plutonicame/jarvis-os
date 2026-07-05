@@ -369,6 +369,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   <div class="pin-err" id="enter-err"></div>
   <div class="pin-pad" id="enter-pad"></div>
   <button class="pin-link" onclick="doSignOut()">← Changer de compte</button>
+  <button class="pin-link" id="forgot-pin-btn" style="display:none" onclick="resetPinByEmail()">Mot de passe oublié ? Réinitialiser par email</button>
 </div>
 
 <!-- ÉCRAN CRÉER PIN -->
@@ -692,26 +693,22 @@ function showOverlay(id){
 // ════════════════════════════════════════════
 // SÉCURITÉ — HASH PIN SHA-256
 // ════════════════════════════════════════════
-async function hashPin(pin, userId){
-  // PBKDF2 avec 100k itérations — résistant au bruteforce
-  const uid = userId || currentUser?.id || ''
+// Dérive un mot de passe Supabase depuis le PIN + email (sel stable = email)
+// L'email est utilisé comme sel car il est connu AVANT et APRÈS la session
+async function pinToPassword(pin, email){
+  const normalizedEmail = (email || '').toLowerCase().trim()
   const keyMaterial = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(pin),
     'PBKDF2', false, ['deriveBits']
   )
   const bits = await crypto.subtle.deriveBits({
     name: 'PBKDF2',
-    salt: new TextEncoder().encode('jarvis_salt_' + uid),
+    salt: new TextEncoder().encode('jarvis_v1_' + normalizedEmail),
     iterations: 100000,
     hash: 'SHA-256'
   }, keyMaterial, 256)
-  return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('')
-}
-
-// Dérive le mot de passe Supabase depuis le PIN (non-réversible)
-async function pinToPassword(pin, userId){
-  const hash = await hashPin(pin, userId)
-  return 'Jrv_' + hash.slice(0,32) + '_Os'  // 38 chars, respecte politique Supabase
+  const hex = Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('')
+  return 'Jrv_' + hex.slice(0,32) + '_Os'
 }
 
 // LocalStorage keys — uniquement pour le cache modules (le PIN est en cloud)
@@ -783,9 +780,8 @@ function setupConfirmPin(){
   buildPad('confirm-pad','confirm-dots', async(val, reset)=>{
     if(val === pinFirstEntry){
       try{
-        const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
-        // currentUser vient de la session Google fraîchement validée
-        // On définit ce PIN comme mot de passe Supabase pour ce compte
+        const pinAsPassword = await pinToPassword(val, currentUser.email)
+        // Le sel = email (cohérent avec setupEnterPinByEmail)
         const { error } = await sb.auth.updateUser({ password: pinAsPassword })
         if(error) throw error
         // Marque le profil comme ayant un PIN configuré
@@ -823,7 +819,7 @@ window.changePin = function(){
   buildPad('oldpin-pad','oldpin-dots', async(val, reset)=>{
     const err = document.getElementById('oldpin-err')
     try{
-      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)
+      const pinAsPassword = await pinToPassword(val, currentUser.email)
       const { data, error } = await sb.auth.signInWithPassword({
         email: currentUser.email,
         password: pinAsPassword
@@ -943,6 +939,21 @@ async function initSupabase(){
 
     // ── Démarrage normal : toujours demander l'email ──
     loadModulesLocal(); renderModules()
+    // Retour depuis email de réinitialisation → propose de créer un nouveau PIN
+    const urlParams = new URLSearchParams(window.location.search)
+    if(urlParams.get('reset') === 'true'){
+      history.replaceState(null,'',window.location.pathname)
+      // Supabase a injecté une session temporaire via le lien email
+      const { data:{ session } } = await sb.auth.getSession()
+      if(session?.user){
+        currentUser = session.user
+        pendingEmail = session.user.email
+        toast('Crée ton nouveau PIN','success',4000)
+        showOverlay('overlayCreatePin')
+        setupCreatePin()
+        return
+      }
+    }
     showOverlay('overlayEmailEntry')
     setTimeout(()=>document.getElementById('email-input')?.focus(), 200)
 
@@ -1001,7 +1012,7 @@ function setupEnterPinByEmail(){
     const err = document.getElementById('enter-err')
     try{
       // Le PIN EST le mot de passe Supabase (6 chiffres = mot de passe minimum requis étendu)
-      const pinAsPassword = await pinToPassword(val, currentUser?.id || pendingEmail)  // dérivation fixe pour respecter la politique mdp Supabase
+      const pinAsPassword = await pinToPassword(val, pendingEmail)
       const { data, error } = await sb.auth.signInWithPassword({
         email: pendingEmail,
         password: pinAsPassword
