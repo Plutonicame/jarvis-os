@@ -134,6 +134,32 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sp-btn.danger:hover{background:rgba(255,40,40,.2)}
 
 /* ════════════════════════════════════════
+   PANNEAU IA — CERVEAU JARVIS
+════════════════════════════════════════ */
+#ia-panel{display:none;position:fixed;inset:0;z-index:650;background:rgba(0,5,18,.97);backdrop-filter:blur(14px);flex-direction:column}
+#ia-panel.open{display:flex}
+#ia-bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(0,10,26,.97);border-bottom:1px solid var(--border);flex-shrink:0}
+#ia-close{padding:4px 12px;border-radius:6px;font-size:10px;font-family:var(--mono);letter-spacing:1px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .18s}
+#ia-close:hover{background:rgba(255,50,50,.1);border-color:rgba(255,60,60,.4);color:#ff7070}
+#ia-title{font-family:var(--mono);font-size:11px;color:var(--blue2);letter-spacing:2px}
+#ia-engine-badge{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:2px 9px}
+#ia-log{flex:1;overflow-y:auto;padding:20px;max-width:640px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:10px}
+.ia-msg{padding:9px 14px;border-radius:10px;font-size:12px;line-height:1.55;max-width:82%;word-wrap:break-word;white-space:pre-wrap}
+.ia-msg.user{align-self:flex-end;background:rgba(0,90,180,.28);border:1px solid rgba(0,170,255,.25);color:var(--text)}
+.ia-msg.assistant{align-self:flex-start;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--blue2)}
+#ia-input-row{display:flex;gap:10px;padding:14px 18px;max-width:640px;margin:0 auto;width:100%;border-top:1px solid var(--border)}
+#ia-input{flex:1;padding:11px 14px;background:rgba(0,20,60,.7);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none;font-family:var(--sans)}
+#ia-input:focus{border-color:var(--blue)}
+#ia-send{padding:0 18px;border-radius:9px;background:rgba(0,100,220,.3);border:1px solid rgba(0,170,255,.3);color:var(--blue2);cursor:pointer;font-size:15px}
+#ia-send:hover{background:rgba(0,130,255,.45)}
+#ia-mic{padding:0 14px;border-radius:9px;background:rgba(0,170,255,.07);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:15px;transition:all .2s}
+#ia-mic:hover{border-color:var(--blue);color:var(--blue2)}
+#ia-mic.listening{background:rgba(255,60,60,.15);border-color:rgba(255,60,60,.4);color:#ff7070;animation:blink 1s infinite}
+#jarvis-center{cursor:pointer}
+#ia-btn{cursor:pointer;font-size:15px;padding:4px 9px;border-radius:8px;transition:all .2s;opacity:.75;border:1px solid transparent}
+#ia-btn:hover{opacity:1;background:rgba(0,170,255,.08);border-color:var(--border)}
+
+/* ════════════════════════════════════════
    CONFIRM MODAL
 ════════════════════════════════════════ */
 #confirm-modal{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,5,18,.88);backdrop-filter:blur(10px);align-items:center;justify-content:center}
@@ -217,6 +243,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
     <img src="icon-192.png" alt="Jarvis OS"/>
   </div>
   <div id="tb-right">
+    <div id="ia-btn" onclick="openIA()" title="Parler à Jarvis">🧠</div>
     <div id="sync-indicator">
       <div id="sync-dot"></div>
       <span id="sync-text">HORS LIGNE</span>
@@ -248,7 +275,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 ══════════════════════════════════════ -->
 <div id="app">
   <div id="hud-wrap">
-    <div id="jarvis-center">
+    <div id="jarvis-center" onclick="openIA()">
       <canvas id="hud"></canvas>
       <div id="state-label">EN LIGNE</div>
     </div>
@@ -311,6 +338,23 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
       </p>
       <button class="sp-btn danger" onclick="deleteAccount()">🗑 Supprimer mon compte</button>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     JARVIS IA — CERVEAU (CHAT)
+══════════════════════════════════════ -->
+<div id="ia-panel">
+  <div id="ia-bar">
+    <button id="ia-close" onclick="closeIA()">← RETOUR</button>
+    <span id="ia-title">JARVIS IA</span>
+    <span id="ia-engine-badge"></span>
+  </div>
+  <div id="ia-log"></div>
+  <div id="ia-input-row">
+    <button id="ia-mic" onclick="toggleMic()" title="Parler">🎤</button>
+    <input type="text" id="ia-input" placeholder="Parle à Jarvis..." onkeydown="if(event.key==='Enter')sendToJarvis()"/>
+    <button id="ia-send" onclick="sendToJarvis()">➤</button>
   </div>
 </div>
 
@@ -436,6 +480,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 // ════════════════════════════════════════════
 const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY1NjgsImV4cCI6MjA5Nzk3MjU2OH0.9XrL6fP90b84R6VzbD4LS-rVaUxTdwRFimRVixrsdcw'
+const GEMINI_API_KEY     = 'AQ.Ab8RN6IgxKLvwaUb7sKi3l__Yzkd_lE7iVZ5dBEwgGkNJ2wZEg'
+const GEMINI_MODEL       = 'gemini-flash-latest'     // modèle texte/raisonnement + recherche web intégrée
+const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image'  // "Nano Banana" — génération d'images, même clé
 const MAX_MODULE_SIZE_MB = 2
 const PIN_LENGTH         = 6
 const PIN_MAX_ATTEMPTS   = 5
@@ -715,6 +762,7 @@ async function pinToPassword(pin, email){
 const lsKey = {
   modules: ()  => LS_PREFIX+'modules',
   syncTs:  ()  => LS_PREFIX+'sync_ts',
+  iaMemory:()  => LS_PREFIX+'ia_memory',
 }
 
 // ════════════════════════════════════════════
@@ -1008,10 +1056,10 @@ window.checkEmailAccount = async function(){
 // ── Saisie PIN pour un compte existant (sans session active) ──
 function setupEnterPinByEmail(){
   pinAttempts = 0
+  document.getElementById('forgot-pin-btn').style.display = 'none'
   buildPad('enter-pad','enter-dots', async(val, reset)=>{
     const err = document.getElementById('enter-err')
     try{
-      // Le PIN EST le mot de passe Supabase (6 chiffres = mot de passe minimum requis étendu)
       const pinAsPassword = await pinToPassword(val, pendingEmail)
       const { data, error } = await sb.auth.signInWithPassword({
         email: pendingEmail,
@@ -1021,16 +1069,32 @@ function setupEnterPinByEmail(){
       if(data?.session?.user){
         pinAttempts = 0
         currentUser = data.session.user
+        document.getElementById('forgot-pin-btn').style.display = 'none'
         await afterPinValidated()
       }
     }catch(e){
       pinAttempts++
+      const left = PIN_MAX_ATTEMPTS - pinAttempts
+      // Après 3 tentatives → affiche le bouton reset
+      if(pinAttempts >= 3){
+        document.getElementById('forgot-pin-btn').style.display = 'block'
+      }
       if(pinAttempts >= PIN_MAX_ATTEMPTS){
-        err.textContent = 'Trop de tentatives. Retour à l\'accueil...'
+        // Bloqué — propose les options
+        err.textContent = 'Trop de tentatives incorrectes.'
         err.classList.add('visible')
-        setTimeout(()=>{ showOverlay('overlayEmailEntry'); document.getElementById('email-input').value='' }, 2000)
+        const choice = await confirm2(
+          'PIN bloqué',
+          'Tu as épuisé tes tentatives pour ' + pendingEmail + '. Que veux-tu faire ?',
+          '📧 Réinitialiser par email'
+        )
+        if(choice){
+          await resetPinByEmail()
+        } else {
+          showOverlay('overlayEmailEntry')
+          document.getElementById('email-input').value = ''
+        }
       } else {
-        const left = PIN_MAX_ATTEMPTS - pinAttempts
         err.textContent = `PIN incorrect — ${left} essai${left>1?'s':''} restant${left>1?'s':''}`
         err.classList.add('visible')
         reset(true)
@@ -1531,6 +1595,313 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js')
     .then(()=>console.log('[Jarvis] Service Worker enregistré'))
     .catch(e=>console.warn('[Jarvis] SW error:', e))
+}
+
+// ════════════════════════════════════════════
+// JARVIS IA — LE CERVEAU
+// Architecture : Memory + Tool Registry + Engine Router + Orchestrator
+// Voir jarvis-architecture.md pour le détail des principes et des phases.
+// ════════════════════════════════════════════
+
+class IAMemory{
+  constructor(maxTurns=30){ this.maxTurns=maxTurns; this.turns=[]; this.load() }
+  add(role, content, meta={}){
+    this.turns.push({ role, content, ts:Date.now(), ...meta })
+    if(this.turns.length > this.maxTurns*4) this.turns.splice(0, this.turns.length-this.maxTurns*4)
+    this.save()
+  }
+  context(){ return this.turns.map(({role,content})=>({role,content})) }
+  save(){ try{ localStorage.setItem(lsKey.iaMemory(), JSON.stringify(this.turns)) }catch(e){} }
+  load(){ try{ const raw=localStorage.getItem(lsKey.iaMemory()); if(raw) this.turns=JSON.parse(raw) }catch(e){ this.turns=[] } }
+  clear(){ this.turns=[]; this.save() }
+}
+
+class IAToolRegistry{
+  constructor(){ this.tools=new Map() }
+  register(name, definition, handler){ this.tools.set(name, {definition, handler}) }
+  list(){ return [...this.tools.values()].map(t=>t.definition) }
+  has(name){ return this.tools.has(name) }
+  async execute(name, args){
+    const t = this.tools.get(name)
+    if(!t) throw new Error('Outil inconnu: '+name)
+    return await t.handler(args||{})
+  }
+}
+
+class IAEngineRouter{
+  constructor(){ this.engines=new Map(); this.defaultEngine=null }
+  register(name, adapter, {isDefault=false}={}){
+    this.engines.set(name, adapter)
+    if(isDefault || !this.defaultEngine) this.defaultEngine = name
+  }
+  pick(taskHint){
+    if(taskHint==='rapide' && this.engines.has('gemini')) return 'gemini'
+    return this.defaultEngine
+  }
+  async call(engineName, messages, tools){
+    const a = this.engines.get(engineName)
+    if(!a) throw new Error('Moteur inconnu: '+engineName)
+    return await a.call(messages, tools)
+  }
+}
+
+class IAOrchestrator{
+  constructor({memory, tools, engineRouter}){
+    this.memory=memory; this.tools=tools; this.engineRouter=engineRouter; this.maxLoops=5
+  }
+  async ask(userInput, {taskHint=null}={}){
+    this.memory.add('user', userInput)
+    const engineName = this.engineRouter.pick(taskHint)
+    let loops=0, finalAnswer=null
+    const images = []
+    while(loops < this.maxLoops){
+      const messages = this.memory.context()
+      const response = await this.engineRouter.call(engineName, messages, this.tools.list())
+      if(response.toolCalls && response.toolCalls.length){
+        for(const call of response.toolCalls){
+          let result
+          try{ result = await this.tools.execute(call.name, call.args) }
+          catch(e){ result = { error: e.message } }
+          if(call.name==='generate_image' && result.image_base64){
+            images.push({ base64: result.image_base64, mime: result.mime_type||'image/png' })
+            this.memory.add('tool', `[Image générée pour: "${call.args?.prompt||''}"]`, { toolName: call.name })
+          } else {
+            this.memory.add('tool', JSON.stringify(result), { toolName: call.name })
+          }
+        }
+        loops++
+        continue
+      }
+      finalAnswer = response.text
+      break
+    }
+    if(!finalAnswer) finalAnswer = "Je n'arrive pas à conclure après plusieurs étapes d'outils."
+    this.memory.add('assistant', finalAnswer)
+    return { text: finalAnswer, engineUsed: engineName, images }
+  }
+}
+
+// ── Outils de base (Phase 1 — voir jarvis-architecture.md section 7 pour la suite) ──
+const iaTools = new IAToolRegistry()
+
+iaTools.register('get_time',
+  { name:'get_time', description:"Renvoie l'heure et la date actuelles", parameters:{} },
+  async ()=>({ time: new Date().toLocaleString('fr-FR') })
+)
+
+iaTools.register('calculator',
+  { name:'calculator', description:'Fait un calcul simple: a op b', parameters:{ a:'number', op:'+ - * /', b:'number' } },
+  async ({a,op,b})=>{
+    const ops = { '+':a+b, '-':a-b, '*':a*b, '/':a/b }
+    return { result: ops[op] ?? null }
+  }
+)
+
+iaTools.register('list_modules',
+  { name:'list_modules', description:'Liste les modules/applications installés dans Jarvis OS', parameters:{} },
+  async ()=>({ modules: MODULES.map(m=>({ name:m.name, actif:m.is_active!==false })) })
+)
+
+iaTools.register('generate_image',
+  { name:'generate_image', description:"Génère une image à partir d'une description texte", parameters:{ prompt:'string' } },
+  async ({prompt})=>{
+    if(!GEMINI_API_KEY) throw new Error('Clé Gemini manquante')
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`,
+      { method:'POST', headers:{'Content-Type':'application/json', 'X-goog-api-key':GEMINI_API_KEY},
+        body: JSON.stringify({ contents:[{ role:'user', parts:[{ text: prompt }] }] }) }
+    )
+    const data = await res.json()
+    if(data.error) throw new Error(data.error.message || "Erreur génération d'image")
+    const parts = data?.candidates?.[0]?.content?.parts || []
+    const imgPart = parts.find(p=>p.inlineData || p.inline_data)
+    const inline = imgPart?.inlineData || imgPart?.inline_data
+    if(!inline) throw new Error("Aucune image reçue du moteur")
+    return { image_base64: inline.data, mime_type: inline.mimeType || inline.mime_type || 'image/png' }
+  }
+)
+
+// Utilisé uniquement par le moteur de secours local (mockEngine).
+// Avec Gemini, la recherche passe par son outil natif google_search (voir geminiAdapter) — pas par ce stub.
+iaTools.register('web_search',
+  { name:'web_search', description:"Recherche des informations sur le web (mode local uniquement)", parameters:{ query:'string' } },
+  async ({query})=>({
+    unavailable: true,
+    message: `Recherche indisponible en mode local pour "${query}". Avec une clé Gemini valide, la recherche web est automatique (outil natif Google Search).`
+  })
+)
+
+// ── Adaptateur Gemini (function calling) ──
+// Simplifié pour ce premier jet : si tu as déjà un pattern Gemini qui marche dans TJP,
+// envoie-le et je le réutilise à l'identique ici pour rester cohérent entre les deux projets.
+const geminiAdapter = {
+  async call(messages, toolDefs){
+    if(!GEMINI_API_KEY) throw new Error('Clé Gemini manquante')
+    const contents = messages.map(m=>({
+      role: m.role==='assistant' ? 'model' : m.role==='tool' ? 'function' : 'user',
+      parts: [{ text: m.content }]
+    }))
+    const body = { contents, tools: [] }
+    // Outils personnalisés (calculator, get_time, list_modules...)
+    const customDefs = toolDefs.filter(t=>t.name!=='web_search')
+    if(customDefs.length){
+      body.tools.push({ functionDeclarations: customDefs.map(t=>({
+        name:t.name, description:t.description, parameters:{ type:'object', properties:t.parameters||{} }
+      })) })
+    }
+    // Recherche web native Gemini (même clé, pas de service tiers)
+    body.tools.push({ google_search: {} })
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      { method:'POST', headers:{'Content-Type':'application/json', 'X-goog-api-key':GEMINI_API_KEY}, body:JSON.stringify(body) }
+    )
+    const data = await res.json()
+    if(data.error) throw new Error(data.error.message || 'Erreur API Gemini')
+    const part = data?.candidates?.[0]?.content?.parts?.[0]
+    if(part?.functionCall) return { toolCalls: [{ name: part.functionCall.name, args: part.functionCall.args||{} }] }
+    return { text: part?.text || '[Jarvis] Pas de réponse du moteur.' }
+  }
+}
+
+// ── Moteur de secours — actif tant qu'aucune clé IA n'est configurée ──
+const mockEngine = {
+  async call(messages){
+    const lastUser = [...messages].reverse().find(m=>m.role==='user')
+    const text = (lastUser?.content||'').toLowerCase()
+    const math = text.match(/([\d.]+)\s*([\+\-\*\/])\s*([\d.]+)/)
+    if(math) return { toolCalls:[{ name:'calculator', args:{ a:parseFloat(math[1]), op:math[2], b:parseFloat(math[3]) } }] }
+    if(/heure|date/.test(text)) return { toolCalls:[{ name:'get_time', args:{} }] }
+    if(/module|application/.test(text)) return { toolCalls:[{ name:'list_modules', args:{} }] }
+    if(/recherche|cherche/.test(text)) return { toolCalls:[{ name:'web_search', args:{ query:text } }] }
+    const lastTool = [...messages].reverse().find(m=>m.role==='tool')
+    if(lastTool) return { text: `Résultat : ${lastTool.content}` }
+    return { text: "[Mode local] Aucune clé IA configurée — je ne peux exécuter que des outils simples (calcul, heure, modules). Ajoute ta clé Gemini dans index.html pour un vrai raisonnement." }
+  }
+}
+
+const iaEngineRouter = new IAEngineRouter()
+iaEngineRouter.register('mock', mockEngine, { isDefault:true })
+iaEngineRouter.register('gemini', geminiAdapter)
+if(GEMINI_API_KEY) iaEngineRouter.defaultEngine = 'gemini'
+
+const iaMemory  = new IAMemory()
+const jarvisBrain = new IAOrchestrator({ memory: iaMemory, tools: iaTools, engineRouter: iaEngineRouter })
+
+// ── UI du chat ──
+window.openIA = function(){
+  document.getElementById('ia-panel').classList.add('open')
+  document.getElementById('ia-engine-badge').textContent =
+    GEMINI_API_KEY ? 'GEMINI' : 'MODE LOCAL'
+  renderIALog()
+  setTimeout(()=>document.getElementById('ia-input')?.focus(), 150)
+}
+window.closeIA = function(){
+  document.getElementById('ia-panel').classList.remove('open')
+}
+
+function renderIALog(){
+  const log = document.getElementById('ia-log')
+  log.innerHTML = ''
+  iaMemory.turns.filter(t=>t.role==='user'||t.role==='assistant').forEach(t=>appendIAMsg(t.role, t.content, false))
+  log.scrollTop = log.scrollHeight
+}
+
+function appendIAMsg(role, content, scroll=true){
+  const log = document.getElementById('ia-log')
+  const div = document.createElement('div')
+  div.className = 'ia-msg ' + role
+  div.textContent = content
+  log.appendChild(div)
+  if(scroll) log.scrollTop = log.scrollHeight
+}
+
+function appendIAImage(base64, mime){
+  const log = document.getElementById('ia-log')
+  const wrap = document.createElement('div')
+  wrap.className = 'ia-msg assistant'
+  wrap.style.padding = '6px'
+  const img = document.createElement('img')
+  img.src = `data:${mime};base64,${base64}`
+  img.style.cssText = 'max-width:100%;border-radius:8px;display:block'
+  wrap.appendChild(img)
+  log.appendChild(wrap)
+  log.scrollTop = log.scrollHeight
+}
+
+// ── Reconnaissance vocale (Web Speech API — native, aucune clé requise) ──
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
+let recognition = null, micListening = false
+
+if(SpeechRec){
+  recognition = new SpeechRec()
+  recognition.lang = 'fr-FR'
+  recognition.continuous = false
+  recognition.interimResults = false
+  recognition.onresult = (e)=>{
+    const transcript = e.results[0][0].transcript
+    document.getElementById('ia-input').value = transcript
+    sendToJarvis()
+  }
+  recognition.onerror = (e)=>{
+    console.warn('[Jarvis] Erreur reconnaissance vocale:', e.error)
+    if(e.error !== 'no-speech') toast('Micro : '+e.error, 'error')
+    setMicUI(false)
+  }
+  recognition.onend = ()=> setMicUI(false)
+}
+
+function setMicUI(listening){
+  micListening = listening
+  const btn = document.getElementById('ia-mic')
+  if(btn) btn.classList.toggle('listening', listening)
+}
+
+window.toggleMic = function(){
+  if(!recognition){ toast('Reconnaissance vocale non supportée sur ce navigateur','warn'); return }
+  if(micListening){ recognition.stop(); return }
+  try{ recognition.start(); setMicUI(true) }
+  catch(e){ toast('Micro indisponible : '+e.message,'error') }
+}
+
+// ── Synthèse vocale (Web Speech API — native, aucune clé requise) ──
+function speakText(text){
+  if(!('speechSynthesis' in window)) return false
+  try{
+    window.speechSynthesis.cancel() // coupe toute lecture en cours
+    const utter = new SpeechSynthesisUtterance(text)
+    utter.lang = 'fr-FR'
+    utter.onend   = ()=>{ if(jarvisState==='speaking') setState('online') }
+    utter.onerror = ()=>{ if(jarvisState==='speaking') setState('online') }
+    window.speechSynthesis.speak(utter)
+    return true
+  }catch(e){
+    console.warn('[Jarvis] Erreur synthèse vocale:', e)
+    return false
+  }
+}
+
+window.sendToJarvis = async function(){
+  const input = document.getElementById('ia-input')
+  const val = input.value.trim()
+  if(!val) return
+  input.value = ''
+  appendIAMsg('user', val)
+  setState('working')
+  try{
+    const { text, images } = await jarvisBrain.ask(val)
+    setState('speaking')
+    appendIAMsg('assistant', text)
+    images.forEach(img => appendIAImage(img.base64, img.mime))
+    const spoke = speakText(text)
+    // Filet de sécurité : si l'événement de fin de lecture ne se déclenche jamais,
+    // on ne reste pas bloqué en état PARLE.
+    const fallbackDelay = spoke ? Math.max(3000, text.length*70) : 2200
+    setTimeout(()=>{ if(jarvisState==='speaking') setState('online') }, fallbackDelay)
+  }catch(e){
+    appendIAMsg('assistant', 'Erreur : '+e.message)
+    setState('online')
+  }
 }
 
 // ════════════════════════════════════════════
