@@ -1690,7 +1690,12 @@ iaTools.register('get_time',
 )
 
 iaTools.register('calculator',
-  { name:'calculator', description:'Fait un calcul simple: a op b', parameters:{ a:'number', op:'+ - * /', b:'number' } },
+  { name:'calculator', description:'Fait un calcul simple: a op b',
+    parameters:{
+      a: { type:'NUMBER', description:'Premier nombre' },
+      op:{ type:'STRING', description:'Opérateur', enum:['+','-','*','/'] },
+      b: { type:'NUMBER', description:'Second nombre' }
+    } },
   async ({a,op,b})=>{
     const ops = { '+':a+b, '-':a-b, '*':a*b, '/':a/b }
     return { result: ops[op] ?? null }
@@ -1703,7 +1708,8 @@ iaTools.register('list_modules',
 )
 
 iaTools.register('generate_image',
-  { name:'generate_image', description:"Génère une image à partir d'une description texte", parameters:{ prompt:'string' } },
+  { name:'generate_image', description:"Génère une image à partir d'une description texte",
+    parameters:{ prompt:{ type:'STRING', description:"Description de l'image à générer" } } },
   async ({prompt})=>{
     if(!GEMINI_API_KEY) throw new Error('Clé Gemini manquante')
     const res = await fetch(
@@ -1724,7 +1730,8 @@ iaTools.register('generate_image',
 // Utilisé uniquement par le moteur de secours local (mockEngine).
 // Avec Gemini, la recherche passe par son outil natif google_search (voir geminiAdapter) — pas par ce stub.
 iaTools.register('web_search',
-  { name:'web_search', description:"Recherche des informations sur le web (mode local uniquement)", parameters:{ query:'string' } },
+  { name:'web_search', description:"Recherche des informations sur le web (mode local uniquement)",
+    parameters:{ query:{ type:'STRING', description:'Termes de recherche' } } },
   async ({query})=>({
     unavailable: true,
     message: `Recherche indisponible en mode local pour "${query}". Avec une clé Gemini valide, la recherche web est automatique (outil natif Google Search).`
@@ -1746,7 +1753,8 @@ const geminiAdapter = {
     const customDefs = toolDefs.filter(t=>t.name!=='web_search')
     if(customDefs.length){
       body.tools.push({ functionDeclarations: customDefs.map(t=>({
-        name:t.name, description:t.description, parameters:{ type:'object', properties:t.parameters||{} }
+        name:t.name, description:t.description,
+        parameters:{ type:'OBJECT', properties:t.parameters||{}, required:Object.keys(t.parameters||{}) }
       })) })
     }
     // Recherche web native Gemini (même clé, pas de service tiers)
