@@ -332,6 +332,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
       <button class="sp-btn secondary" onclick="changePin()">🔑 Changer mon code PIN</button>
     </div>
     <div class="sp-section">
+      <div class="sp-section-title">Agent local (contrôle PC)</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Colle ici le token affiché au lancement de Jarvis Agent sur cette machine, pour autoriser Jarvis IA à agir (clavier/souris/apps) depuis ce PC uniquement.
+      </p>
+      <div class="sp-field"><label>Token de l'agent</label><input type="text" id="sp-agent-token" placeholder="Collé depuis la console de Jarvis Agent"/></div>
+      <button class="sp-btn primary" onclick="saveAgentToken()">Enregistrer</button>
+      <p id="sp-agent-status" style="font-size:11px;color:var(--muted);margin-top:10px"></p>
+    </div>
+    <div class="sp-section">
       <div class="sp-section-title">Zone de danger</div>
       <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         La suppression du compte est irréversible. Toutes tes données (modules, profil, configuration) seront définitivement effacées.
@@ -481,8 +490,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 const SUPABASE_URL      = 'https://hcnieajravwenkvkxxib.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbmllYWpyYXZ3ZW5rdmt4eGliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY1NjgsImV4cCI6MjA5Nzk3MjU2OH0.9XrL6fP90b84R6VzbD4LS-rVaUxTdwRFimRVixrsdcw'
 const GEMINI_API_KEY     = 'AQ.Ab8RN6IgxKLvwaUb7sKi3l__Yzkd_lE7iVZ5dBEwgGkNJ2wZEg'
-const GEMINI_MODEL       = 'gemini-flash-latest'     // modèle texte/raisonnement + recherche web intégrée
-const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image'  // "Nano Banana" — génération d'images, même clé
+const GEMINI_MODEL       = 'gemini-flash-latest'     // modèle texte/raisonnement — chat gratuit uniquement
 const MAX_MODULE_SIZE_MB = 2
 const PIN_LENGTH         = 6
 const PIN_MAX_ATTEMPTS   = 5
@@ -763,6 +771,7 @@ const lsKey = {
   modules: ()  => LS_PREFIX+'modules',
   syncTs:  ()  => LS_PREFIX+'sync_ts',
   iaMemory:()  => LS_PREFIX+'ia_memory',
+  agentToken:()=> LS_PREFIX+'agent_token',
 }
 
 // ════════════════════════════════════════════
@@ -1534,8 +1543,30 @@ window.importModules = function(e){
 // ════════════════════════════════════════════
 window.toggleDropdown = function(){ document.getElementById('user-dropdown').classList.toggle('open') }
 window.closeDropdown  = function(){ document.getElementById('user-dropdown').classList.remove('open') }
-window.openSettings   = function(){ document.getElementById('settings-panel').classList.add('open') }
+window.openSettings   = function(){
+  document.getElementById('settings-panel').classList.add('open')
+  document.getElementById('sp-agent-token').value = AGENT_TOKEN
+  refreshAgentStatus()
+}
 window.closeSettings  = function(){ document.getElementById('settings-panel').classList.remove('open') }
+
+window.saveAgentToken = function(){
+  const val = document.getElementById('sp-agent-token').value.trim()
+  AGENT_TOKEN = val
+  localStorage.setItem(lsKey.agentToken(), val)
+  toast('Token agent enregistré')
+  refreshAgentStatus()
+}
+
+async function refreshAgentStatus(){
+  const el = document.getElementById('sp-agent-status')
+  el.textContent = 'Vérification...'
+  const available = await checkAgentAvailable()
+  el.textContent = available
+    ? '● Jarvis Agent détecté sur cette machine'
+    : '○ Jarvis Agent non détecté (pas lancé, ou pas installé sur ce PC)'
+  el.style.color = available ? '#2ee6a6' : 'var(--muted)'
+}
 
 // ════════════════════════════════════════════
 // ONLINE / OFFLINE
@@ -1606,20 +1637,50 @@ if('serviceWorker' in navigator){
 class IAMemory{
   constructor(maxTurns=30){ this.maxTurns=maxTurns; this.turns=[]; this.load() }
   add(role, content, meta={}){
-    this.turns.push({ role, content, ts:Date.now(), ...meta })
+    const turn = { role, content, ts:Date.now(), ...meta }
+    this.turns.push(turn)
     if(this.turns.length > this.maxTurns*4) this.turns.splice(0, this.turns.length-this.maxTurns*4)
     this.save()
+    this.pushCloud(turn) // best-effort, pas bloquant
   }
   context(){ return this.turns.map(({role,content})=>({role,content})) }
   save(){ try{ localStorage.setItem(lsKey.iaMemory(), JSON.stringify(this.turns)) }catch(e){} }
   load(){ try{ const raw=localStorage.getItem(lsKey.iaMemory()); if(raw) this.turns=JSON.parse(raw) }catch(e){ this.turns=[] } }
   clear(){ this.turns=[]; this.save() }
+
+  // Conversation partagée entre appareils (PC/téléphone) via Supabase.
+  // Seul le texte est synchronisé — pas les images générées (trop lourd), juste leur mention.
+  async pushCloud(turn){
+    if(!sb || !currentUser) return
+    try{
+      await sb.from('jarvis_ia_messages').insert({
+        user_id: currentUser.id, role: turn.role, content: turn.content, tool_name: turn.toolName||null
+      })
+    }catch(e){ console.warn('[Jarvis] Sync conversation échouée:', e.message) }
+  }
+  async pullCloud(){
+    if(!sb || !currentUser) return
+    try{
+      const { data, error } = await sb.from('jarvis_ia_messages')
+        .select('role,content,tool_name,created_at')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending:true })
+        .limit(this.maxTurns*4)
+      if(error) throw error
+      if(data && data.length){
+        this.turns = data.map(d=>({ role:d.role, content:d.content, toolName:d.tool_name, ts:new Date(d.created_at).getTime() }))
+        this.save()
+      }
+    }catch(e){ console.warn('[Jarvis] Chargement conversation cloud échoué:', e.message) }
+  }
 }
 
 class IAToolRegistry{
   constructor(){ this.tools=new Map() }
-  register(name, definition, handler){ this.tools.set(name, {definition, handler}) }
-  list(){ return [...this.tools.values()].map(t=>t.definition) }
+  register(name, definition, handler, opts={}){
+    this.tools.set(name, { definition, handler, available: opts.available || (()=>true) })
+  }
+  list(){ return [...this.tools.values()].filter(t=>t.available()).map(t=>t.definition) }
   has(name){ return this.tools.has(name) }
   async execute(name, args){
     const t = this.tools.get(name)
@@ -1635,6 +1696,7 @@ class IAEngineRouter{
     if(isDefault || !this.defaultEngine) this.defaultEngine = name
   }
   pick(taskHint){
+    if(localEngineAvailable && this.engines.has('ollama')) return 'ollama'
     if(taskHint==='rapide' && this.engines.has('gemini')) return 'gemini'
     return this.defaultEngine
   }
@@ -1662,9 +1724,9 @@ class IAOrchestrator{
           let result
           try{ result = await this.tools.execute(call.name, call.args) }
           catch(e){ result = { error: e.message } }
-          if(call.name==='generate_image' && result.image_base64){
+          if(result && result.image_base64){
             images.push({ base64: result.image_base64, mime: result.mime_type||'image/png' })
-            this.memory.add('tool', `[Image générée pour: "${call.args?.prompt||''}"]`, { toolName: call.name })
+            this.memory.add('tool', `[Image: ${call.name} — "${call.args?.prompt||call.name}"]`, { toolName: call.name })
           } else {
             this.memory.add('tool', JSON.stringify(result), { toolName: call.name })
           }
@@ -1692,9 +1754,9 @@ iaTools.register('get_time',
 iaTools.register('calculator',
   { name:'calculator', description:'Fait un calcul simple: a op b',
     parameters:{
-      a: { type:'NUMBER', description:'Premier nombre' },
-      op:{ type:'STRING', description:'Opérateur', enum:['+','-','*','/'] },
-      b: { type:'NUMBER', description:'Second nombre' }
+      a: { type:'number', description:'Premier nombre' },
+      op:{ type:'string', description:'Opérateur', enum:['+','-','*','/'] },
+      b: { type:'number', description:'Second nombre' }
     } },
   async ({a,op,b})=>{
     const ops = { '+':a+b, '-':a-b, '*':a*b, '/':a/b }
@@ -1708,34 +1770,181 @@ iaTools.register('list_modules',
 )
 
 iaTools.register('generate_image',
-  { name:'generate_image', description:"Génère une image à partir d'une description texte",
-    parameters:{ prompt:{ type:'STRING', description:"Description de l'image à générer" } } },
+  { name:'generate_image', description:"Génère une image à partir d'une description texte (nécessite ComfyUI local)",
+    parameters:{ prompt:{ type:'string', description:"Description de l'image à générer" } } },
   async ({prompt})=>{
-    if(!GEMINI_API_KEY) throw new Error('Clé Gemini manquante')
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`,
-      { method:'POST', headers:{'Content-Type':'application/json', 'X-goog-api-key':GEMINI_API_KEY},
-        body: JSON.stringify({ contents:[{ role:'user', parts:[{ text: prompt }] }] }) }
-    )
-    const data = await res.json()
-    if(data.error) throw new Error(data.error.message || "Erreur génération d'image")
-    const parts = data?.candidates?.[0]?.content?.parts || []
-    const imgPart = parts.find(p=>p.inlineData || p.inline_data)
-    const inline = imgPart?.inlineData || imgPart?.inline_data
-    if(!inline) throw new Error("Aucune image reçue du moteur")
-    return { image_base64: inline.data, mime_type: inline.mimeType || inline.mime_type || 'image/png' }
+    if(await checkComfyUIAvailable()) return await generateImageComfyUI(prompt)
+    return { unavailable:true, message:"Génération d'image indisponible : ComfyUI n'est pas détecté sur cette machine. Aucune option payante Google n'est utilisée dans ce fichier." }
   }
 )
 
-// Utilisé uniquement par le moteur de secours local (mockEngine).
-// Avec Gemini, la recherche passe par son outil natif google_search (voir geminiAdapter) — pas par ce stub.
+// Recherche web désactivée : aucune option Google facturable dans ce fichier.
 iaTools.register('web_search',
-  { name:'web_search', description:"Recherche des informations sur le web (mode local uniquement)",
-    parameters:{ query:{ type:'STRING', description:'Termes de recherche' } } },
+  { name:'web_search', description:"Recherche des informations sur le web (non disponible)",
+    parameters:{ query:{ type:'string', description:'Termes de recherche' } } },
   async ({query})=>({
     unavailable: true,
-    message: `Recherche indisponible en mode local pour "${query}". Avec une clé Gemini valide, la recherche web est automatique (outil natif Google Search).`
+    message: `Recherche web indisponible pour "${query}" — aucune option Google facturable n'est utilisée dans ce fichier.`
   })
+)
+
+// ── Outils de contrôle PC — uniquement déclarés si Jarvis Agent tourne sur CETTE machine.
+// Un téléphone ne peut jamais atteindre le localhost du PC : ces outils y sont donc
+// automatiquement invisibles pour Jarvis IA, sans logique spéciale à coder.
+iaTools.register('open_app',
+  { name:'open_app', description:"Ouvre une application sur l'ordinateur",
+    parameters:{ name:{ type:'string', description:"Nom de l'application (ex: notepad, chrome, calculator)" } } },
+  async ({name})=>callAgent('open_app', { name }),
+  { available:()=>agentAvailable }
+)
+
+iaTools.register('open_url',
+  { name:'open_url', description:"Ouvre une page web dans le navigateur par défaut du PC",
+    parameters:{ url:{ type:'string', description:'URL à ouvrir' } } },
+  async ({url})=>callAgent('open_url', { url }),
+  { available:()=>agentAvailable }
+)
+
+iaTools.register('type_text',
+  { name:'type_text', description:"Tape du texte à l'endroit où se trouve le curseur sur le PC",
+    parameters:{ text:{ type:'string', description:'Texte à taper' } } },
+  async ({text})=>callAgent('type_text', { text }),
+  { available:()=>agentAvailable }
+)
+
+iaTools.register('press_key',
+  { name:'press_key', description:"Appuie sur une touche du clavier du PC (ex: enter, tab, escape)",
+    parameters:{ key:{ type:'string', description:'Nom de la touche' } } },
+  async ({key})=>callAgent('press_key', { key }),
+  { available:()=>agentAvailable }
+)
+
+iaTools.register('click_at',
+  { name:'click_at', description:"Clique à une position précise de l'écran du PC",
+    parameters:{ x:{ type:'number', description:'Position horizontale en pixels' }, y:{ type:'number', description:'Position verticale en pixels' } } },
+  async ({x,y})=>callAgent('click', { x, y }),
+  { available:()=>agentAvailable }
+)
+
+iaTools.register('take_screenshot',
+  { name:'take_screenshot', description:"Prend une capture d'écran du PC (tous les écrans si plusieurs)", parameters:{} },
+  async ()=>{
+    const res = await callAgent('screenshot')
+    const first = res.screens?.[0]
+    if(!first) throw new Error("Aucune capture reçue")
+    return { image_base64: first.image_base64, mime_type: res.mime_type||'image/png', ecrans_captures: res.screens.length }
+  },
+  { available:()=>agentAvailable }
+)
+
+// ── Contrôle visuel autonome — Jarvis observe l'écran, agit, ré-observe, jusqu'à accomplir la tâche.
+// Passe exclusivement par Ollama en local (gemma4:e4b, vision + sortie structurée) — aucune option
+// Gemini n'est utilisée ici, même en secours. Nécessite donc Ollama ET Jarvis Agent tous les deux actifs.
+const VISION_MAX_STEPS = 300 // garde-fou en cas de tâche vraiment impossible — pas une limite pratique
+const VISION_STUCK_THRESHOLD = 3 // au bout de 3 répétitions identiques, on change de stratégie (pas d'arrêt)
+
+function buildVisionPrompt(task, screens, actionsLog, stuckHint){
+  return [
+    `Tu contrôles un ordinateur en observant son écran pour accomplir : "${task}"`,
+    `Écrans fournis en image, dans l'ordre : ${screens.map(s=>`#${s.index} (${s.width}x${s.height}px)`).join(', ')}.`,
+    actionsLog.length ? `Actions déjà faites, dans l'ordre : ${actionsLog.join(' | ')}` : `Aucune action encore faite.`,
+    stuckHint ? `⚠ ${stuckHint}` : '',
+    `Réponds UNIQUEMENT avec un objet JSON, sans texte autour ni balises markdown, parmi :`,
+    `{"action":"click","screen":0,"x":123,"y":456,"reasoning":"pourquoi"}`,
+    `{"action":"type_text","text":"...","reasoning":"pourquoi"}`,
+    `{"action":"press_key","key":"enter","reasoning":"pourquoi"}`,
+    `{"action":"scroll","amount":-300,"reasoning":"pourquoi"}`,
+    `{"action":"done","summary":"résultat final à donner à l'utilisateur"}`,
+    `Les coordonnées x/y sont en pixels réels de l'image de l'écran indiqué, relatives à son coin haut-gauche.`,
+    `Ne réponds "done" avec un échec que si tu as vraiment essayé plusieurs approches différentes et que c'est clairement impossible — pas au premier obstacle.`
+  ].filter(Boolean).join('\n')
+}
+
+function parseVisionDecision(text){
+  try{
+    const cleaned = text.replace(/```json|```/g,'').trim()
+    const obj = JSON.parse(cleaned)
+    if(obj && obj.action) return obj
+  }catch(e){ console.warn('[Jarvis Vision] Réponse non-JSON reçue:', text) }
+  return null
+}
+
+async function runVisionAgentLoop(task){
+  if(!localEngineAvailable) throw new Error("Le contrôle visuel nécessite Ollama en local avec un modèle vision (ex: gemma4:e4b) — aucune option Gemini n'est utilisée pour cette fonction")
+  const actionsLog = []
+  const lastSignatures = []
+  let stuckHint = null
+  let strategyChanges = 0
+
+  for(let stepN=0; stepN<VISION_MAX_STEPS; stepN++){
+    const shot = await callAgent('screenshot')
+    const screens = shot.screens || []
+    if(!screens.length) throw new Error("Aucun écran capturé par Jarvis Agent")
+
+    const promptText = buildVisionPrompt(task, screens, actionsLog, stuckHint)
+    stuckHint = null // ne s'applique qu'au prochain essai, pas indéfiniment
+
+    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: OLLAMA_VISION_MODEL,
+        stream: false,
+        messages: [{ role:'user', content: promptText, images: screens.map(s=>s.image_base64) }]
+      })
+    })
+    const data = await res.json()
+    if(data.error) throw new Error(data.error)
+    const textOut = data?.message?.content || ''
+    const decision = parseVisionDecision(textOut)
+    if(!decision){ actionsLog.push('Réponse illisible du moteur vision — nouvelle tentative.'); continue }
+
+    if(decision.action === 'done') return decision.summary || 'Tâche terminée.'
+
+    const scr = screens[decision.screen ?? 0] || screens[0]
+    const signature = JSON.stringify({ a: decision.action, x: decision.x, y: decision.y, t: decision.text, k: decision.key })
+    try{
+      if(decision.action === 'click'){
+        await callAgent('click', { x: scr.x + decision.x, y: scr.y + decision.y })
+        actionsLog.push(`click écran ${scr.index} (${decision.x},${decision.y})`)
+      } else if(decision.action === 'type_text'){
+        await callAgent('type_text', { text: decision.text })
+        actionsLog.push(`type_text "${decision.text}"`)
+      } else if(decision.action === 'press_key'){
+        await callAgent('press_key', { key: decision.key })
+        actionsLog.push(`press_key ${decision.key}`)
+      } else if(decision.action === 'scroll'){
+        await callAgent('scroll', { amount: decision.amount||-300 })
+        actionsLog.push(`scroll ${decision.amount||-300}`)
+      } else {
+        actionsLog.push(`action inconnue ignorée: ${decision.action}`)
+      }
+    }catch(e){
+      actionsLog.push(`échec action (${decision.action}): ${e.message}`)
+    }
+
+    // Détection de blocage : la même action exacte répétée plusieurs fois de suite = probablement coincé.
+    // Au lieu de s'arrêter, on force un changement de stratégie à la prochaine tentative.
+    lastSignatures.push(signature)
+    if(lastSignatures.length > VISION_STUCK_THRESHOLD) lastSignatures.shift()
+    if(lastSignatures.length === VISION_STUCK_THRESHOLD && lastSignatures.every(s=>s===signature)){
+      strategyChanges++
+      stuckHint = `Tes ${VISION_STUCK_THRESHOLD} dernières tentatives étaient identiques (${decision.action}) et n'ont rien changé à l'écran. `
+        + `NE RÉPÈTE PAS cette action. Regarde l'écran plus attentivement, envisage une autre méthode complètement `
+        + `différente pour atteindre l'objectif (autre bouton, autre chemin, défilement, raccourci clavier, fermer/rouvrir...).`
+      lastSignatures.length = 0
+    }
+
+    await new Promise(r=>setTimeout(r, 600)) // laisse l'UI du PC réagir avant la capture suivante
+  }
+  return `Garde-fou de sécurité atteint (${VISION_MAX_STEPS} étapes, ${strategyChanges} changements de stratégie) sans conclure. `
+    + `Dernières actions : ${actionsLog.slice(-4).join(' | ')}`
+}
+
+iaTools.register('computer_use',
+  { name:'computer_use', description:"Fait agir Jarvis directement sur l'écran du PC de façon autonome : observe, clique, tape, jusqu'à accomplir la tâche demandée",
+    parameters:{ task:{ type:'string', description:"Ce que Jarvis doit accomplir à l'écran, en une phrase claire" } } },
+  async ({task})=>({ summary: await runVisionAgentLoop(task) }),
+  { available:()=>agentAvailable && localEngineAvailable }
 )
 
 // ── Adaptateur Gemini (function calling) ──
@@ -1754,11 +1963,16 @@ const geminiAdapter = {
     if(customDefs.length){
       body.tools.push({ functionDeclarations: customDefs.map(t=>({
         name:t.name, description:t.description,
-        parameters:{ type:'OBJECT', properties:t.parameters||{}, required:Object.keys(t.parameters||{}) }
+        parameters:{
+          type:'OBJECT',
+          properties: Object.fromEntries(Object.entries(t.parameters||{}).map(([k,v])=>[k,{...v, type:(v.type||'string').toUpperCase()}])),
+          required: Object.keys(t.parameters||{})
+        }
       })) })
     }
-    // Recherche web native Gemini (même clé, pas de service tiers)
-    body.tools.push({ google_search: {} })
+    // Pas de google_search : on reste sur le chat texte gratuit uniquement,
+    // aucune option Google facturable dans ce fichier.
+    if(body.tools.length===0) delete body.tools
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
@@ -1770,6 +1984,128 @@ const geminiAdapter = {
     if(part?.functionCall) return { toolCalls: [{ name: part.functionCall.name, args: part.functionCall.args||{} }] }
     return { text: part?.text || '[Jarvis] Pas de réponse du moteur.' }
   }
+}
+
+// ── Adaptateur Ollama (local, gratuit, illimité — uniquement si dispo sur cette machine) ──
+const OLLAMA_URL   = 'http://localhost:11434'
+const OLLAMA_MODEL = 'mistral-small'  // adapte selon le modèle téléchargé avec `ollama pull`
+const OLLAMA_VISION_MODEL = 'gemma4:e4b'  // modèle vision pour le contrôle d'écran — `ollama pull gemma4:e4b`
+
+const COMFYUI_URL        = 'http://127.0.0.1:8188'
+const COMFYUI_CHECKPOINT = 'sd_xl_base_1.0.safetensors' // doit correspondre EXACTEMENT au nom du fichier dans ComfyUI/models/checkpoints
+
+const AGENT_URL = 'http://127.0.0.1:5055' // Jarvis Agent — programme local séparé (contrôle clavier/souris du PC)
+let AGENT_TOKEN = localStorage.getItem(lsKey.agentToken()) || ''
+
+const ollamaAdapter = {
+  async call(messages, toolDefs){
+    const body = {
+      model: OLLAMA_MODEL,
+      stream: false,
+      messages: messages.map(m=>({ role: m.role==='tool' ? 'tool' : m.role, content: m.content }))
+    }
+    if(toolDefs.length){
+      body.tools = toolDefs.map(t=>({
+        type:'function',
+        function:{ name:t.name, description:t.description,
+          parameters:{ type:'object', properties:t.parameters||{}, required:Object.keys(t.parameters||{}) } }
+      }))
+    }
+    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    })
+    const data = await res.json()
+    const tc = data?.message?.tool_calls?.[0]
+    if(tc) return { toolCalls: [{ name: tc.function.name, args: tc.function.arguments||{} }] }
+    return { text: data?.message?.content || '[Jarvis local] Pas de réponse.' }
+  }
+}
+
+// ── ComfyUI (génération d'images locale, gratuite, illimitée — si dispo sur cette machine) ──
+async function checkComfyUIAvailable(){
+  try{
+    const ctrl = new AbortController()
+    const t = setTimeout(()=>ctrl.abort(), 900)
+    const res = await fetch(`${COMFYUI_URL}/system_stats`, { signal: ctrl.signal })
+    clearTimeout(t)
+    return res.ok
+  }catch(e){ return false }
+}
+
+function buildComfyWorkflow(prompt){
+  const seed = Math.floor(Math.random()*1e9)
+  return {
+    "3": { class_type:"KSampler", inputs:{ cfg:7, denoise:1, latent_image:["5",0], model:["4",0], negative:["7",0], positive:["6",0], sampler_name:"euler", scheduler:"normal", seed, steps:20 } },
+    "4": { class_type:"CheckpointLoaderSimple", inputs:{ ckpt_name: COMFYUI_CHECKPOINT } },
+    "5": { class_type:"EmptyLatentImage", inputs:{ width:1024, height:1024, batch_size:1 } },
+    "6": { class_type:"CLIPTextEncode", inputs:{ text: prompt, clip:["4",1] } },
+    "7": { class_type:"CLIPTextEncode", inputs:{ text:"", clip:["4",1] } },
+    "8": { class_type:"VAEDecode", inputs:{ samples:["3",0], vae:["4",2] } },
+    "9": { class_type:"SaveImage", inputs:{ filename_prefix:"jarvis", images:["8",0] } }
+  }
+}
+
+async function generateImageComfyUI(prompt){
+  const clientId = 'jarvis-'+Math.random().toString(36).slice(2)
+  const submit = await fetch(`${COMFYUI_URL}/prompt`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ prompt: buildComfyWorkflow(prompt), client_id: clientId })
+  }).then(r=>r.json())
+  if(submit.error) throw new Error(submit.error.message || 'Erreur ComfyUI')
+  const promptId = submit.prompt_id
+  for(let i=0;i<60;i++){
+    await new Promise(r=>setTimeout(r,1000))
+    const hist = await fetch(`${COMFYUI_URL}/history/${promptId}`).then(r=>r.json())
+    const entry = hist[promptId]
+    const imgInfo = entry?.outputs ? Object.values(entry.outputs).flatMap(o=>o.images||[])[0] : null
+    if(imgInfo){
+      const imgRes = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(imgInfo.filename)}&subfolder=${encodeURIComponent(imgInfo.subfolder||'')}&type=${imgInfo.type||'output'}`)
+      const blob = await imgRes.blob()
+      const base64 = await new Promise(resolve=>{
+        const reader = new FileReader()
+        reader.onloadend = ()=>resolve(reader.result.split(',')[1])
+        reader.readAsDataURL(blob)
+      })
+      return { image_base64: base64, mime_type: blob.type || 'image/png' }
+    }
+  }
+  throw new Error("Timeout génération d'image ComfyUI (60s)")
+}
+
+// ── Jarvis Agent (programme local séparé — contrôle clavier/souris/apps du PC) ──
+let agentAvailable = false
+async function checkAgentAvailable(){
+  try{
+    const ctrl = new AbortController()
+    const t = setTimeout(()=>ctrl.abort(), 900)
+    const res = await fetch(`${AGENT_URL}/status`, { signal: ctrl.signal })
+    clearTimeout(t)
+    return res.ok
+  }catch(e){ return false }
+}
+
+async function callAgent(action, args={}){
+  if(!AGENT_TOKEN) throw new Error("Jarvis Agent détecté mais aucun token configuré (Paramètres → Agent local)")
+  const res = await fetch(`${AGENT_URL}/action`, {
+    method:'POST', headers:{'Content-Type':'application/json', 'X-Jarvis-Token':AGENT_TOKEN},
+    body: JSON.stringify({ action, args })
+  })
+  const data = await res.json()
+  if(data.error) throw new Error(data.error)
+  return data
+}
+
+// Vérifie si Ollama tourne sur cette machine (timeout court pour ne jamais bloquer l'UI —
+// répond "non disponible" instantanément sur téléphone ou tout PC sans Ollama)
+let localEngineAvailable = false
+async function checkOllamaAvailable(){
+  try{
+    const ctrl = new AbortController()
+    const t = setTimeout(()=>ctrl.abort(), 900)
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal })
+    clearTimeout(t)
+    return res.ok
+  }catch(e){ return false }
 }
 
 // ── Moteur de secours — actif tant qu'aucune clé IA n'est configurée ──
@@ -1784,23 +2120,29 @@ const mockEngine = {
     if(/recherche|cherche/.test(text)) return { toolCalls:[{ name:'web_search', args:{ query:text } }] }
     const lastTool = [...messages].reverse().find(m=>m.role==='tool')
     if(lastTool) return { text: `Résultat : ${lastTool.content}` }
-    return { text: "[Mode local] Aucune clé IA configurée — je ne peux exécuter que des outils simples (calcul, heure, modules). Ajoute ta clé Gemini dans index.html pour un vrai raisonnement." }
+    return { text: "[Hors ligne] Aucun moteur disponible (ni Ollama local, ni clé Gemini) — je ne peux exécuter que des outils simples (calcul, heure, modules)." }
   }
 }
 
 const iaEngineRouter = new IAEngineRouter()
 iaEngineRouter.register('mock', mockEngine, { isDefault:true })
 iaEngineRouter.register('gemini', geminiAdapter)
+iaEngineRouter.register('ollama', ollamaAdapter)
 if(GEMINI_API_KEY) iaEngineRouter.defaultEngine = 'gemini'
 
 const iaMemory  = new IAMemory()
 const jarvisBrain = new IAOrchestrator({ memory: iaMemory, tools: iaTools, engineRouter: iaEngineRouter })
 
 // ── UI du chat ──
-window.openIA = function(){
+window.openIA = async function(){
   document.getElementById('ia-panel').classList.add('open')
-  document.getElementById('ia-engine-badge').textContent =
-    GEMINI_API_KEY ? 'GEMINI' : 'MODE LOCAL'
+  const badge = document.getElementById('ia-engine-badge')
+  badge.textContent = '…'
+  await iaMemory.pullCloud()
+  localEngineAvailable = await checkOllamaAvailable()
+  agentAvailable = await checkAgentAvailable()
+  badge.textContent = (localEngineAvailable ? 'OLLAMA · LOCAL' : (GEMINI_API_KEY ? 'GEMINI · CLOUD' : 'HORS LIGNE'))
+    + (agentAvailable ? ' · AGENT PC' : '')
   renderIALog()
   setTimeout(()=>document.getElementById('ia-input')?.focus(), 150)
 }
