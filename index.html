@@ -332,6 +332,21 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
       <button class="sp-btn secondary" onclick="changePin()">🔑 Changer mon code PIN</button>
     </div>
     <div class="sp-section">
+      <div class="sp-section-title">"Hey Jarvis" (écoute permanente)</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Une fois activé, le micro reste allumé en permanence tant que l'onglet Jarvis OS est ouvert et visible.
+        Dis "Hey Jarvis" suivi de ta demande, sans rien toucher. Le navigateur demandera l'autorisation du micro
+        une seule fois — impossible de l'activer sans cette autorisation, c'est une protection du navigateur, pas de Jarvis OS.
+        Honnêteté : la transcription vocale du navigateur passe par un service en ligne (Google côté Chrome) — ce n'est
+        pas un traitement 100% local comme Ollama.
+      </p>
+      <div class="sp-field" style="display:flex;align-items:center;justify-content:space-between">
+        <label style="margin:0">Activer l'écoute permanente</label>
+        <input type="checkbox" id="sp-wake-word" onchange="toggleWakeWordSetting(this.checked)" style="width:20px;height:20px"/>
+      </div>
+      <p id="sp-wake-status" style="font-size:11px;color:var(--muted);margin-top:10px"></p>
+    </div>
+    <div class="sp-section">
       <div class="sp-section-title">Agent local (contrôle PC)</div>
       <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         Colle ici le token affiché au lancement de Jarvis Agent sur cette machine, pour autoriser Jarvis IA à agir (clavier/souris/apps) depuis ce PC uniquement.
@@ -772,6 +787,7 @@ const lsKey = {
   syncTs:  ()  => LS_PREFIX+'sync_ts',
   iaMemory:()  => LS_PREFIX+'ia_memory',
   agentToken:()=> LS_PREFIX+'agent_token',
+  wakeWord:()  => LS_PREFIX+'wake_word_enabled',
 }
 
 // ════════════════════════════════════════════
@@ -1546,6 +1562,8 @@ window.closeDropdown  = function(){ document.getElementById('user-dropdown').cla
 window.openSettings   = function(){
   document.getElementById('settings-panel').classList.add('open')
   document.getElementById('sp-agent-token').value = AGENT_TOKEN
+  document.getElementById('sp-wake-word').checked = localStorage.getItem(lsKey.wakeWord()) === '1'
+  document.getElementById('sp-wake-status').textContent = wakeListeningActive ? '● Écoute permanente active' : ''
   refreshAgentStatus()
 }
 window.closeSettings  = function(){ document.getElementById('settings-panel').classList.remove('open') }
@@ -1954,8 +1972,8 @@ const geminiAdapter = {
   async call(messages, toolDefs){
     if(!GEMINI_API_KEY) throw new Error('Clé Gemini manquante')
     const contents = messages.map(m=>({
-      role: m.role==='assistant' ? 'model' : m.role==='tool' ? 'function' : 'user',
-      parts: [{ text: m.content }]
+      role: m.role==='assistant' ? 'model' : 'user',
+      parts: [{ text: m.role==='tool' ? `[Résultat d'outil] ${m.content}` : m.content }]
     }))
     const body = { contents, tools: [] }
     // Outils personnalisés (calculator, get_time, list_modules...)
@@ -2221,8 +2239,8 @@ function speakText(text){
     window.speechSynthesis.cancel() // coupe toute lecture en cours
     const utter = new SpeechSynthesisUtterance(text)
     utter.lang = 'fr-FR'
-    utter.onend   = ()=>{ if(jarvisState==='speaking') setState('online') }
-    utter.onerror = ()=>{ if(jarvisState==='speaking') setState('online') }
+    utter.onend   = ()=> resumeAfterSpeaking()
+    utter.onerror = ()=> resumeAfterSpeaking()
     window.speechSynthesis.speak(utter)
     return true
   }catch(e){
@@ -2230,6 +2248,107 @@ function speakText(text){
     return false
   }
 }
+
+// ── "Hey Jarvis" — écoute permanente avec mot-clé de réveil ──
+// Important à savoir : le navigateur écoute en continu et transcrit TOUT ce qui se dit (pas de vraie
+// détection de mot-clé à bas coût comme sur une enceinte connectée) — le tri "hey jarvis" ou pas se fait
+// ensuite en JavaScript, sur le texte déjà transcrit. Ça ne peut démarrer qu'après une autorisation
+// explicite du micro par le navigateur (obligatoire, aucun moyen de contourner ça), et ça s'arrête si
+// l'onglet passe en arrière-plan ou si l'écran se verrouille.
+let wakeListeningActive = false
+let wakeRecognition = null
+let wakeArmed = false // true juste après avoir entendu "jarvis" seul, en attente de la commande qui suit
+const WAKE_PATTERN = /h?e?y?\s*jarvis/i
+
+function initWakeRecognition(){
+  if(!SpeechRec) return null
+  const r = new SpeechRec()
+  r.lang = 'fr-FR'
+  r.continuous = true
+  r.interimResults = false
+  r.onresult = (e)=>{
+    const transcript = e.results[e.results.length-1][0].transcript.trim()
+    if(!transcript) return
+
+    if(wakeArmed){
+      wakeArmed = false
+      handleWakeCommand(transcript)
+      return
+    }
+
+    if(WAKE_PATTERN.test(transcript)){
+      const after = transcript.replace(WAKE_PATTERN, '').trim()
+      if(after.length > 2){
+        handleWakeCommand(after) // "hey jarvis quelle heure est-il" dit en une seule phrase
+      } else {
+        wakeArmed = true
+        setState('listening') // juste "hey jarvis" tout seul : on attend la suite
+      }
+    }
+  }
+  r.onerror = (e)=>{
+    if(e.error !== 'no-speech' && e.error !== 'aborted') console.warn('[Jarvis] Erreur écoute Hey Jarvis:', e.error)
+  }
+  r.onend = ()=>{
+    if(wakeListeningActive && jarvisState !== 'working' && jarvisState !== 'speaking'){
+      try{ r.start() }catch(e){}
+    }
+  }
+  return r
+}
+
+window.toggleWakeWordSetting = function(enabled){
+  localStorage.setItem(lsKey.wakeWord(), enabled ? '1' : '0')
+  if(enabled) startWakeListening(); else stopWakeListening()
+}
+
+function startWakeListening(){
+  if(!SpeechRec){ toast('Reconnaissance vocale non supportée sur ce navigateur','warn'); return }
+  if(wakeListeningActive) return
+  wakeRecognition = initWakeRecognition()
+  wakeListeningActive = true
+  try{ wakeRecognition.start() }
+  catch(e){ toast('Micro indisponible : '+e.message,'error'); wakeListeningActive=false; return }
+  const status = document.getElementById('sp-wake-status')
+  if(status) status.textContent = '● Écoute permanente active — dis "Hey Jarvis" suivi de ta demande'
+}
+
+function stopWakeListening(){
+  wakeListeningActive = false
+  wakeArmed = false
+  if(wakeRecognition){ try{ wakeRecognition.stop() }catch(e){} }
+  if(jarvisState==='listening') setState('online')
+  const status = document.getElementById('sp-wake-status')
+  if(status) status.textContent = ''
+}
+
+function resumeAfterSpeaking(){
+  if(wakeListeningActive){
+    setState('online') // retour à l'écoute passive du mot-clé, pas en mode "ÉCOUTE" actif
+    if(wakeRecognition){ try{ wakeRecognition.start() }catch(e){} }
+  } else if(jarvisState==='speaking'){
+    setState('online')
+  }
+}
+
+async function handleWakeCommand(transcript){
+  if(wakeRecognition){ try{ wakeRecognition.stop() }catch(e){} } // évite que le micro capte sa propre réponse
+  setState('working')
+  appendIAMsg('user', transcript) // déjà là quand le chat sera rouvert
+  try{
+    const { text, images } = await jarvisBrain.ask(transcript)
+    setState('speaking')
+    appendIAMsg('assistant', text)
+    images.forEach(img => appendIAImage(img.base64, img.mime))
+    const spoke = speakText(text)
+    const fallbackDelay = spoke ? Math.max(3000, text.length*70) : 2200
+    setTimeout(()=>{ if(jarvisState==='speaking') resumeAfterSpeaking() }, fallbackDelay)
+  }catch(e){
+    toast('Erreur : '+e.message,'error')
+    resumeAfterSpeaking()
+  }
+}
+
 
 window.sendToJarvis = async function(){
   const input = document.getElementById('ia-input')
@@ -2247,7 +2366,7 @@ window.sendToJarvis = async function(){
     // Filet de sécurité : si l'événement de fin de lecture ne se déclenche jamais,
     // on ne reste pas bloqué en état PARLE.
     const fallbackDelay = spoke ? Math.max(3000, text.length*70) : 2200
-    setTimeout(()=>{ if(jarvisState==='speaking') setState('online') }, fallbackDelay)
+    setTimeout(()=>{ if(jarvisState==='speaking') resumeAfterSpeaking() }, fallbackDelay)
   }catch(e){
     appendIAMsg('assistant', 'Erreur : '+e.message)
     setState('online')
@@ -2259,6 +2378,7 @@ window.sendToJarvis = async function(){
 // ════════════════════════════════════════════
 renderModules()
 initSupabase()
+if(localStorage.getItem(lsKey.wakeWord()) === '1') startWakeListening()
 </script>
 </body>
 </html>
